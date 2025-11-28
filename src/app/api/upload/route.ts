@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { parsePGDAS, parseNFSe } from '@/lib/parsers/xml-parser'
 import { parseDAF607 } from '@/lib/parsers/csv-parser'
+import { logAction } from '@/lib/audit'
 
 export async function POST(request: NextRequest) {
     try {
@@ -76,6 +77,13 @@ export async function POST(request: NextRequest) {
             default:
                 return NextResponse.json({ error: 'Invalid file type' }, { status: 400 })
         }
+
+        // Log the upload action
+        await logAction('FILE_UPLOAD', fileType, {
+            fileName: file.name,
+            fileSize: file.size,
+            result: result
+        })
 
         return NextResponse.json(result)
     } catch (error: any) {

@@ -9,27 +9,21 @@ export interface CrossingResult {
     }[]
 }
 
-/**
- * Compare PGDAS declarations with NFS-e invoices
- * Detects revenue omissions
- */
 export async function comparePgdasNfse(companyId: string, period: string): Promise<CrossingResult> {
-    const divergences: any[] = []
+    const divergences: {
+        type: string
+        description: string
+        value: number
+    }[] = []
 
-    // Get PGDAS declaration for the period
     const declaration = await prisma.declaration.findFirst({
-        where: {
-            companyId,
-            period,
-            type: 'PGDAS'
-        }
+        where: { companyId, period, type: 'PGDAS' }
     })
 
     if (!declaration) {
         return { companyId, divergences: [] }
     }
 
-    // Get all invoices for the same period
     const [month, year] = period.split('/')
     const startDate = new Date(parseInt(year), parseInt(month) - 1, 1)
     const endDate = new Date(parseInt(year), parseInt(month), 0)
@@ -37,18 +31,14 @@ export async function comparePgdasNfse(companyId: string, period: string): Promi
     const invoices = await prisma.invoice.findMany({
         where: {
             companyId,
-            issueDate: {
-                gte: startDate,
-                lte: endDate
-            }
+            issueDate: { gte: startDate, lte: endDate }
         }
     })
 
     const totalInvoiced = invoices.reduce((sum, inv) => sum + inv.value, 0)
     const declared = declaration.revenue
 
-    // Check for divergence
-    if (totalInvoiced > declared * 1.05) { // 5% tolerance
+    if (totalInvoiced > declared * 1.05) {
         const difference = totalInvoiced - declared
         divergences.push({
             type: 'Omissão de Receita',
@@ -60,19 +50,17 @@ export async function comparePgdasNfse(companyId: string, period: string): Promi
     return { companyId, divergences }
 }
 
-/**
- * Check if company exceeded Simples Nacional sublimit
- * R$ 3.6M for most states, R$ 4.8M for some
- */
 export async function checkSublimite(companyId: string, year: number, limit: number = 3600000): Promise<CrossingResult> {
-    const divergences: any[] = []
+    const divergences: {
+        type: string
+        description: string
+        value: number
+    }[] = []
 
     const declarations = await prisma.declaration.findMany({
         where: {
             companyId,
-            period: {
-                contains: `/${year}`
-            }
+            period: { contains: `/${year}` }
         }
     })
 
@@ -89,22 +77,13 @@ export async function checkSublimite(companyId: string, year: number, limit: num
     return { companyId, divergences }
 }
 
-/**
- * Detect companies that didn't declare (omissos)
- */
 export async function detectOmissos(period: string): Promise<string[]> {
     const allCompanies = await prisma.company.findMany({
-        where: {
-            status: 'Ativo',
-            regime: 'Simples Nacional'
-        }
+        where: { status: 'Ativo', regime: 'Simples Nacional' }
     })
 
     const declarations = await prisma.declaration.findMany({
-        where: {
-            period,
-            type: 'PGDAS'
-        }
+        where: { period, type: 'PGDAS' }
     })
 
     const declaredCompanyIds = new Set(declarations.map(d => d.companyId))
@@ -115,9 +94,6 @@ export async function detectOmissos(period: string): Promise<string[]> {
     return omissos
 }
 
-/**
- * Run all crossing checks for a company
- */
 export async function runCrossingChecks(companyId: string): Promise<void> {
     const company = await prisma.company.findUnique({
         where: { id: companyId },
@@ -131,16 +107,12 @@ export async function runCrossingChecks(companyId: string): Promise<void> {
 
     if (!company) return
 
-    // Check each declaration period
     for (const declaration of company.declarations) {
         const result = await comparePgdasNfse(companyId, declaration.period)
 
-        // Save divergences to database
         for (const div of result.divergences) {
             await prisma.divergence.upsert({
-                where: {
-                    id: `${companyId}-${declaration.period}-${div.type}`
-                },
+                where: { id: `${companyId}-${declaration.period}-${div.type}` },
                 update: {
                     description: div.description,
                     value: div.value,
@@ -158,15 +130,12 @@ export async function runCrossingChecks(companyId: string): Promise<void> {
         }
     }
 
-    // Check sublimit for current year
     const currentYear = new Date().getFullYear()
     const sublimitResult = await checkSublimite(companyId, currentYear)
 
     for (const div of sublimitResult.divergences) {
         await prisma.divergence.upsert({
-            where: {
-                id: `${companyId}-${currentYear}-${div.type}`
-            },
+            where: { id: `${companyId}-${currentYear}-${div.type}` },
             update: {
                 description: div.description,
                 value: div.value,
@@ -183,12 +152,8 @@ export async function runCrossingChecks(companyId: string): Promise<void> {
         })
     }
 
-    // Update company risk level based on divergences
     const allDivergences = await prisma.divergence.findMany({
-        where: {
-            companyId,
-            status: 'Pendente'
-        }
+        where: { companyId, status: 'Pendente' }
     })
 
     let riskLevel = 'Baixo'
