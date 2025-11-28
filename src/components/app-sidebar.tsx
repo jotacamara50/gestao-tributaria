@@ -11,6 +11,7 @@ import {
   Settings,
   LogOut,
   PieChart,
+  Mail,
 } from "lucide-react"
 
 import {
@@ -53,9 +54,19 @@ const data = {
       icon: AlertTriangle,
     },
     {
+      title: "DTE-SN",
+      url: "/dte",
+      icon: Mail,
+    },
+    {
       title: "Relatórios",
       url: "/relatorios",
       icon: FileSpreadsheet,
+    },
+    {
+      title: "Configurações",
+      url: "/configuracoes",
+      icon: Settings,
     },
     {
       title: "Suporte",

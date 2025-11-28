@@ -30,8 +30,8 @@ export async function POST(request: NextRequest) {
                             companyId: company.id,
                             period: pgdasData.period,
                             type: 'PGDAS',
-                            revenue: pgdasData.revenue,
-                            taxDue: pgdasData.taxDue,
+                            revenue: pgdasData.receitaBrutaMensal,
+                            taxDue: pgdasData.valorDevido,
                             xmlContent: content,
                         }
                     })
@@ -51,11 +51,10 @@ export async function POST(request: NextRequest) {
                     const invoice = await prisma.invoice.create({
                         data: {
                             companyId: prestador.id,
-                            number: nfseData.number,
-                            series: nfseData.series,
-                            issueDate: nfseData.issueDate,
-                            value: nfseData.value,
-                            serviceCode: nfseData.serviceCode,
+                            number: nfseData.numero,
+                            issueDate: nfseData.dataEmissao,
+                            value: nfseData.valorServicos,
+                            serviceCode: nfseData.itemListaServico,
                             tomadorCnpj: nfseData.tomadorCnpj,
                             xmlContent: content,
                         }

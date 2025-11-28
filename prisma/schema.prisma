@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,110 +7,171 @@ datasource db {
   url      = "file:./dev.db"
 }
 
-model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      String   @default("AUDITOR") // ADMIN, AUDITOR, FISCAL
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  logs      AuditLog[]
-}
-
 model Company {
-  id              String   @id @default(cuid())
-  cnpj            String   @unique
-  name            String
-  tradeName       String?
-  cnae            String
-  secondaryCnaes  String?
-  regime          String   @default("Simples Nacional")
-  status          String   @default("Ativo") // Ativo, Baixado, Suspenso
-  riskLevel       String   @default("Baixo") // Baixo, Médio, Alto
-  address         String?
-  phone           String?
-  email           String?
-  
-  invoices        Invoice[]
-  declarations    Declaration[]
-  divergences     Divergence[]
-  
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                    String                  @id @default(cuid())
+  cnpj                  String                  @unique
+  name                  String
+  tradeName             String?
+  cnae                  String
+  secondaryCnaes        String?
+  regime                String                  @default("Simples Nacional")
+  status                String                  @default("Ativo")
+  riskLevel             String                  @default("Baixo")
+  address               String?
+  phone                 String?
+  email                 String?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  declarations          Declaration[]
+  divergences           Divergence[]
+  invoices              Invoice[]
+  partners              Partner[]
+  enquadramentoHistory  EnquadramentoHistory[]
+  dteMessages           DTEMessage[]
 }
 
 model Invoice {
   id          String   @id @default(cuid())
   companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-  
   number      String
   series      String?
   issueDate   DateTime
   value       Float
   serviceCode String?
   tomadorCnpj String?
-  
-  xmlContent  String? // Store raw XML if needed
-  
+  xmlContent  String?
   createdAt   DateTime @default(now())
+  company     Company  @relation(fields: [companyId], references: [id])
 }
 
 model Declaration {
-  id          String   @id @default(cuid())
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-  
-  period      String   // MM/YYYY
-  type        String   // PGDAS, DEFIS
-  revenue     Float
-  taxDue      Float
-  
-  xmlContent  String?
-  
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  companyId  String
+  period     String
+  type       String
+  revenue    Float
+  taxDue     Float
+  xmlContent String?
+  createdAt  DateTime @default(now())
+  company    Company  @relation(fields: [companyId], references: [id])
 }
 
 model Repasse {
   id          String   @id @default(cuid())
   date        DateTime
   amount      Float
-  origin      String   // DAF607, BB, TESOURO
+  origin      String
   description String?
-  
   createdAt   DateTime @default(now())
 }
 
 model Divergence {
   id          String   @id @default(cuid())
   companyId   String
-  company     Company  @relation(fields: [companyId], references: [id])
-  
-  type        String   // Omissão, Diferença de Alíquota, Sublimite
+  type        String
   description String
   value       Float
-  status      String   @default("Pendente") // Pendente, Em Análise, Resolvido
+  status      String   @default("Pendente")
   detectedAt  DateTime @default(now())
+  company     Company  @relation(fields: [companyId], references: [id])
 }
 
 model AuditLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
-  action    String
-  resource  String
-  details   String?
-  ipAddress String?
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  resource    String
+  details     String?
+  ipAddress   String?
+  dataBefore  String?
+  dataAfter   String?
+  createdAt   DateTime @default(now())
+  user        User?    @relation(fields: [userId], references: [id])
 }
 
 model Settings {
-  id             String @id @default("default")
-  cityName       String
-  secretaryName  String?
-  lawsText       String?
-  logoUrl        String?
-  
-  updatedAt      DateTime @updatedAt
+  id                String   @id @default("default")
+  cityName          String
+  stateName         String?
+  secretaryName     String?
+  lawsText          String?
+  logoUrl           String?
+  sublimitEstadual  Float    @default(3600000)
+  sublimitMunicipal Float    @default(4800000)
+  address           String?
+  phone             String?
+  email             String?
+  updatedAt         DateTime @updatedAt
+}
+
+model MunicipalLaw {
+  id          String   @id @default(cuid())
+  number      String
+  year        Int
+  description String
+  fullText    String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ISSRate {
+  id          String   @id @default(cuid())
+  cnae        String   @unique
+  description String
+  rate        Float
+  lawNumber   String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Partner {
+  id          String    @id @default(cuid())
+  companyId   String
+  cpf         String
+  name        String
+  role        String
+  startDate   DateTime
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model EnquadramentoHistory {
+  id          String    @id @default(cuid())
+  companyId   String
+  regime      String
+  startDate   DateTime
+  endDate     DateTime?
+  reason      String?
+  createdAt   DateTime  @default(now())
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model DTEMessage {
+  id          String    @id @default(cuid())
+  companyId   String
+  type        String
+  subject     String
+  content     String
+  sentAt      DateTime  @default(now())
+  readAt      DateTime?
+  createdBy   String
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [createdBy], references: [id])
+}
+
+model User {
+  id          String       @id @default(cuid())
+  name        String
+  email       String       @unique
+  password    String
+  role        String       @default("AUDITOR")
+  mfaEnabled  Boolean      @default(false)
+  mfaSecret   String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  logs        AuditLog[]
+  dteMessages DTEMessage[]
 }

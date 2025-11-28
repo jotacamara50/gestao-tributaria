@@ -1,28 +1,26 @@
 import { NextResponse } from 'next/server'
-import { runCrossingChecks } from '@/lib/engine/crossing'
+import { executarTodosCruzamentos, executarCruzamentoEmLote } from '@/lib/engine/crossing'
 import { prisma } from '@/lib/prisma'
 
 export async function POST(request: Request) {
     try {
-        const { companyId } = await request.json()
+        const body = await request.json()
+        const { companyId, period } = body
+
+        if (!period) {
+            return NextResponse.json({ error: 'period is required' }, { status: 400 })
+        }
 
         if (companyId) {
             // Run checks for specific company
-            await runCrossingChecks(companyId)
-            return NextResponse.json({ message: 'Crossing checks completed', companyId })
+            const result = await executarTodosCruzamentos(companyId, period)
+            return NextResponse.json({ message: 'Crossing checks completed', result })
         } else {
             // Run checks for all companies
-            const companies = await prisma.company.findMany({
-                where: { status: 'Ativo' }
-            })
-
-            for (const company of companies) {
-                await runCrossingChecks(company.id)
-            }
-
+            const result = await executarCruzamentoEmLote(period)
             return NextResponse.json({
                 message: 'Crossing checks completed for all companies',
-                count: companies.length
+                result
             })
         }
     } catch (error: any) {

@@ -16,8 +16,10 @@ export function middleware(request: NextRequest) {
         return NextResponse.next()
     }
 
-    // Check for session token
-    const token = request.cookies.get('next-auth.session-token') ||
+    // Check for session token (NextAuth v5 uses authjs.session-token)
+    const token = request.cookies.get('authjs.session-token') ||
+        request.cookies.get('__Secure-authjs.session-token') ||
+        request.cookies.get('next-auth.session-token') ||
         request.cookies.get('__Secure-next-auth.session-token')
 
     // Redirect to login if no token

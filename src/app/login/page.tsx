@@ -25,18 +25,16 @@ export default function LoginPage() {
             const result = await signIn("credentials", {
                 email,
                 password,
-                redirect: false
-            })
+                redirectTo: "/"
+            }) as any
 
             if (result?.error) {
                 setError("Credenciais inválidas")
-            } else {
-                router.push("/")
-                router.refresh()
+                setLoading(false)
             }
+            // Se não houver erro, o NextAuth fará o redirect automaticamente
         } catch (error) {
             setError("Erro ao fazer login")
-        } finally {
             setLoading(false)
         }
     }

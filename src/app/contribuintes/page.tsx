@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table"
 import { Search, Filter, Eye } from "lucide-react"
 import Link from "next/link"
+import { CreateCompanyDialog } from "@/components/contribuintes/create-company-dialog"
 
 interface Company {
     id: string
@@ -79,7 +80,7 @@ export default function ContribuintesPage() {
                         Gerenciamento de contribuintes do município
                     </p>
                 </div>
-                <Button>+ Novo Contribuinte</Button>
+                <CreateCompanyDialog />
             </div>
 
             <Card>
