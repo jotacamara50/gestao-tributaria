@@ -1,5 +1,10 @@
 "use client"
 
+import { useEffect, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import {
     Table,
     TableBody,
@@ -8,82 +13,157 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Search, Filter, Eye } from "lucide-react"
-import { companies } from "@/lib/data"
 import Link from "next/link"
 
+interface Company {
+    id: string
+    cnpj: string
+    name: string
+    cnae: string
+    regime: string
+    status: string
+    riskLevel: string
+    divergences: any[]
+}
+
 export default function ContribuintesPage() {
+    const [companies, setCompanies] = useState<Company[]>([])
+    const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([])
+    const [loading, setLoading] = useState(true)
+    const [searchTerm, setSearchTerm] = useState("")
+
+    useEffect(() => {
+        async function fetchCompanies() {
+            try {
+                const response = await fetch('/api/companies')
+                const data = await response.json()
+                setCompanies(data)
+                setFilteredCompanies(data)
+            } catch (error) {
+                console.error('Failed to fetch companies:', error)
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        fetchCompanies()
+    }, [])
+
+    useEffect(() => {
+        if (searchTerm) {
+            const filtered = companies.filter(c =>
+                c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                c.cnpj.includes(searchTerm)
+            )
+            setFilteredCompanies(filtered)
+        } else {
+            setFilteredCompanies(companies)
+        }
+    }, [searchTerm, companies])
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="text-muted-foreground">Carregando empresas...</div>
+            </div>
+        )
+    }
+
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between">
+            <div className="flex justify-between items-center">
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight">Cadastro Fiscal</h2>
                     <p className="text-muted-foreground">
-                        Gerencie os contribuintes e visualize sua situação cadastral.
+                        Gerenciamento de contribuintes do município
                     </p>
                 </div>
-                <Button>
-                    <Filter className="mr-2 h-4 w-4" /> Filtros Avançados
-                </Button>
+                <Button>+ Novo Contribuinte</Button>
             </div>
 
-            <div className="flex items-center gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        type="search"
-                        placeholder="Buscar por Razão Social, CNPJ ou CNAE..."
-                        className="pl-8 md:w-[300px] lg:w-[400px]"
-                    />
-                </div>
-            </div>
+            <Card>
+                <CardContent className="pt-6">
+                    <div className="flex gap-4 mb-6">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Buscar por nome ou CNPJ..."
+                                className="pl-10"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <Button variant="outline">
+                            <Filter className="h-4 w-4 mr-2" />
+                            Filtros
+                        </Button>
+                    </div>
 
-            <div className="rounded-md border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Razão Social</TableHead>
-                            <TableHead>CNPJ</TableHead>
-                            <TableHead>CNAE Principal</TableHead>
-                            <TableHead>Regime</TableHead>
-                            <TableHead>Risco</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Ações</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {companies.map((company) => (
-                            <TableRow key={company.id}>
-                                <TableCell className="font-medium">{company.name}</TableCell>
-                                <TableCell>{company.cnpj}</TableCell>
-                                <TableCell>{company.cnae}</TableCell>
-                                <TableCell>{company.regime}</TableCell>
-                                <TableCell>
-                                    {company.risk === "Alto" && <Badge variant="destructive">Alto</Badge>}
-                                    {company.risk === "Médio" && <Badge variant="secondary" className="bg-amber-100 text-amber-800 hover:bg-amber-100">Médio</Badge>}
-                                    {company.risk === "Baixo" && <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Baixo</Badge>}
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex items-center gap-2">
-                                        <div className={`h-2 w-2 rounded-full ${company.status === 'Ativo' ? 'bg-green-500' : 'bg-red-500'}`} />
-                                        {company.status}
-                                    </div>
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <Button variant="ghost" size="icon" asChild>
-                                        <Link href={`/contribuintes/${company.id}`}>
-                                            <Eye className="h-4 w-4" />
-                                        </Link>
-                                    </Button>
-                                </TableCell>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>CNPJ</TableHead>
+                                <TableHead>Razão Social</TableHead>
+                                <TableHead>CNAE</TableHead>
+                                <TableHead>Regime</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Risco</TableHead>
+                                <TableHead>Divergências</TableHead>
+                                <TableHead className="text-right">Ações</TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </div>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredCompanies.map((company) => (
+                                <TableRow key={company.id}>
+                                    <TableCell className="font-mono text-sm">{company.cnpj}</TableCell>
+                                    <TableCell className="font-medium">{company.name}</TableCell>
+                                    <TableCell>{company.cnae}</TableCell>
+                                    <TableCell>{company.regime}</TableCell>
+                                    <TableCell>
+                                        <Badge variant={company.status === "Ativo" ? "default" : "secondary"}>
+                                            {company.status}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge
+                                            variant={
+                                                company.riskLevel === "Alto"
+                                                    ? "destructive"
+                                                    : company.riskLevel === "Médio"
+                                                        ? "default"
+                                                        : "secondary"
+                                            }
+                                        >
+                                            {company.riskLevel}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        {company.divergences?.length > 0 ? (
+                                            <Badge variant="destructive">{company.divergences.length}</Badge>
+                                        ) : (
+                                            <span className="text-muted-foreground">—</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Button variant="ghost" size="icon" asChild>
+                                            <Link href={`/contribuintes/${company.id}`}>
+                                                <Eye className="h-4 w-4" />
+                                            </Link>
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+
+                    {filteredCompanies.length === 0 && (
+                        <div className="text-center py-8 text-muted-foreground">
+                            Nenhuma empresa encontrada
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
     )
 }
