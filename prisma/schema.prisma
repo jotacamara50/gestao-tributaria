@@ -1,0 +1,119 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("AUDITOR") // ADMIN, AUDITOR, FISCAL
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  logs      AuditLog[]
+}
+
+model Company {
+  id              String   @id @default(cuid())
+  cnpj            String   @unique
+  name            String
+  tradeName       String?
+  cnae            String
+  secondaryCnaes  String?
+  regime          String   @default("Simples Nacional")
+  status          String   @default("Ativo") // Ativo, Baixado, Suspenso
+  riskLevel       String   @default("Baixo") // Baixo, Médio, Alto
+  address         String?
+  phone           String?
+  email           String?
+  
+  invoices        Invoice[]
+  declarations    Declaration[]
+  divergences     Divergence[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Invoice {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  
+  number      String
+  series      String?
+  issueDate   DateTime
+  value       Float
+  serviceCode String?
+  tomadorCnpj String?
+  
+  xmlContent  String? // Store raw XML if needed
+  
+  createdAt   DateTime @default(now())
+}
+
+model Declaration {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  
+  period      String   // MM/YYYY
+  type        String   // PGDAS, DEFIS
+  revenue     Float
+  taxDue      Float
+  
+  xmlContent  String?
+  
+  createdAt   DateTime @default(now())
+}
+
+model Repasse {
+  id          String   @id @default(cuid())
+  date        DateTime
+  amount      Float
+  origin      String   // DAF607, BB, TESOURO
+  description String?
+  
+  createdAt   DateTime @default(now())
+}
+
+model Divergence {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  
+  type        String   // Omissão, Diferença de Alíquota, Sublimite
+  description String
+  value       Float
+  status      String   @default("Pendente") // Pendente, Em Análise, Resolvido
+  detectedAt  DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  resource  String
+  details   String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
+
+model Settings {
+  id             String @id @default("default")
+  cityName       String
+  secretaryName  String?
+  lawsText       String?
+  logoUrl        String?
+  
+  updatedAt      DateTime @updatedAt
+}
