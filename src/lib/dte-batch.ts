@@ -1,6 +1,36 @@
 import { prisma } from '@/lib/prisma'
 import { format } from 'date-fns'
-import crypto from 'crypto'
+
+type DTEMessageRecord = {
+    cnpj: string
+    sentAt: Date
+    codigo: string
+    tipoRegistro: string
+}
+
+const codigoPorTipo: Record<string, string> = {
+    intimacao: '0015',
+    autoInfracao: '0018',
+    notificacao: '0010',
+    aviso: '0009',
+    lembrete: '0008'
+}
+
+function pad(value: string, size: number, filler = ' ') {
+    if (value.length >= size) return value.slice(0, size)
+    return value + filler.repeat(size - value.length)
+}
+
+export class DTELayoutGenerator {
+    static buildRegistro(message: DTEMessageRecord) {
+        // Layout simples posicional: tipo(3) + cnpj(14) + data(8) + codMsg(4)
+        const tipo = pad(message.tipoRegistro, 3, '0')
+        const cnpj = pad(message.cnpj.replace(/\D/g, ''), 14, '0')
+        const data = format(message.sentAt, 'yyyyMMdd')
+        const cod = pad(message.codigo, 4, '0')
+        return `${tipo}${cnpj}${data}${cod}`
+    }
+}
 
 export type BatchFormat = 'txt' | 'xml'
 
@@ -17,59 +47,6 @@ interface BatchResult {
     filename: string
     content: string
     count: number
-}
-
-function sanitizeText(text: string) {
-    return text.replace(/\s+/g, ' ').trim()
-}
-
-function buildTxtLayout(messages: any[], generatedAt: Date): string {
-    const header = [
-        'HDR',
-        'DTE-SN',
-        format(generatedAt, 'yyyyMMddHHmmss'),
-        'V1'
-    ].join('|')
-
-    const body = messages.map((msg, index) => {
-        const checksum = crypto.createHash('sha256').update(msg.content || '').digest('hex')
-        return [
-            'MSG',
-            index + 1,
-            msg.company.cnpj,
-            sanitizeText(msg.company.name),
-            msg.type,
-            format(msg.sentAt, 'yyyyMMdd'),
-            sanitizeText(msg.subject),
-            checksum.substring(0, 32), // reduzido para facilitar consumo
-            sanitizeText(msg.content).substring(0, 2000) // limita tamanho por registro
-        ].join('|')
-    }).join('\n')
-
-    const trailer = ['TRL', messages.length].join('|')
-
-    return [header, body, trailer].filter(Boolean).join('\n')
-}
-
-function buildXmlLayout(messages: any[], generatedAt: Date): string {
-    const records = messages.map((msg) => {
-        const checksum = crypto.createHash('sha256').update(msg.content || '').digest('hex')
-        return `
-    <Mensagem>
-      <CNPJ>${msg.company.cnpj}</CNPJ>
-      <Empresa>${sanitizeText(msg.company.name)}</Empresa>
-      <Tipo>${msg.type}</Tipo>
-      <Assunto>${sanitizeText(msg.subject)}</Assunto>
-      <DataEnvio>${format(msg.sentAt, 'yyyy-MM-dd')}</DataEnvio>
-      <HashConteudo>${checksum}</HashConteudo>
-      <Conteudo>${sanitizeText(msg.content)}</Conteudo>
-    </Mensagem>`
-    }).join('\n')
-
-    return `<?xml version="1.0" encoding="UTF-8"?>
-<LoteDTE versao="1.0" geradoEm="${format(generatedAt, 'yyyy-MM-dd\'T\'HH:mm:ss')}">
-${records}
-</LoteDTE>`
 }
 
 export async function generateDTEBatch(options: DTEBatchOptions = {}): Promise<BatchResult> {
@@ -100,9 +77,23 @@ export async function generateDTEBatch(options: DTEBatchOptions = {}): Promise<B
         take: options.limit || 500
     })
 
-    const content = formatType === 'xml'
-        ? buildXmlLayout(messages, generatedAt)
-        : buildTxtLayout(messages, generatedAt)
+    const registros = messages.map((msg) => {
+        const codigo = codigoPorTipo[msg.type] || '0000'
+        return DTELayoutGenerator.buildRegistro({
+            cnpj: msg.company.cnpj,
+            sentAt: msg.sentAt,
+            codigo,
+            tipoRegistro: '001' // header/tipo mensagem
+        })
+    })
+
+    let content = ''
+    if (formatType === 'xml') {
+        const items = registros.map(r => `<Registro>${r}</Registro>`).join('\n')
+        content = `<?xml version="1.0" encoding="UTF-8"?>\n<LoteDTE geradoEm="${format(generatedAt, 'yyyy-MM-dd\'T\'HH:mm:ss')}">\n${items}\n</LoteDTE>`
+    } else {
+        content = registros.join('\n')
+    }
 
     const filename = `DTE_LOTE_${format(generatedAt, 'yyyyMMdd_HHmmss')}.${formatType}`
 

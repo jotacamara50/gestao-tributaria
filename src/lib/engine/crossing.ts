@@ -343,22 +343,21 @@ export async function validarRetencoes(
         return 0.05
     })
 
-    const aliquotaRetidaMedia = aliquotasRetidas.length
-        ? aliquotasRetidas.reduce((sum, a) => sum + a, 0) / aliquotasRetidas.length
-        : 0
-
-    const valorRetidoNFSe = invoicesComRetencao.reduce((sum, inv, idx) => {
-        const aliq = aliquotasRetidas[idx] || aliquotaRetidaMedia || 0
+    const valorRetencaoEsperado = invoicesComRetencao.reduce((sum, inv, idx) => {
+        const aliq = aliquotasRetidas[idx] || 0
         return sum + inv.value * aliq
     }, 0)
 
     // Se houve retencao na nota mas aliquota efetiva declarada diverge muito
+    const aliquotaRetidaMedia = aliquotasRetidas.length
+        ? aliquotasRetidas.reduce((sum, a) => sum + a, 0) / aliquotasRetidas.length
+        : 0
     const diferencaAliquota = Math.abs(aliquotaEfetiva - aliquotaRetidaMedia)
     if (invoicesComRetencao.length > 0 && diferencaAliquota > 0.005) {
         divergencias.push({
             tipo: 'ALIQUOTA_DIVERGENTE',
             descricao: `Aliquota efetiva declarada no PGDAS (${(aliquotaEfetiva * 100).toFixed(2)}%) difere da aliquota retida em NFSe (${(aliquotaRetidaMedia * 100).toFixed(2)}%).`,
-            valor: valorRetidoNFSe,
+            valor: valorRetencaoEsperado,
             valorDeclarado: declaration.taxDue,
             percentualDivergencia: diferencaAliquota * 100,
             gravidade: diferencaAliquota > 0.02 ? 'ALTA' : 'MEDIA',
@@ -367,19 +366,19 @@ export async function validarRetencoes(
         })
     }
 
-    // Divergencia de retencao declarada vs NFSe
-    const retidoDeclarado = declaration.taxDue * 0.1 // placeholder ate termos campo especifico
-    const diferencaValor = Math.abs(valorRetidoNFSe - retidoDeclarado)
-    const tolerancia = retidoDeclarado * 0.05
+    // Divergencia de retencao declarada vs NFSe (valor esperado nota a nota)
+    const retidoDeclarado = declaration.taxDue // assumir imposto devido como base declarada
+    const diferencaValor = Math.abs(valorRetencaoEsperado - retidoDeclarado)
+    const tolerancia = Math.max(retidoDeclarado, valorRetencaoEsperado) * 0.05
 
     if (retidoDeclarado > 0 && diferencaValor > tolerancia) {
         divergencias.push({
             tipo: 'RETENCAO_INVALIDA',
-            descricao: `Retencoes de ISS nas NFSe (R$ ${valorRetidoNFSe.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) divergem do declarado (R$ ${retidoDeclarado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Verificar lancamentos.`,
+            descricao: `Soma das notas com ISS retido aponta R$ ${valorRetencaoEsperado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, enquanto o declarado foi R$ ${retidoDeclarado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. Diferença acima da tolerancia.`,
             valor: diferencaValor,
-            valorEsperado: valorRetidoNFSe,
+            valorEsperado: valorRetencaoEsperado,
             valorDeclarado: retidoDeclarado,
-            percentualDivergencia: retidoDeclarado > 0 ? (diferencaValor / retidoDeclarado) * 100 : undefined,
+            percentualDivergencia: (diferencaValor / retidoDeclarado) * 100,
             gravidade: diferencaValor > 1000 ? 'ALTA' : 'MEDIA',
             fundamentoLegal: 'Lei Complementar Municipal de ISS / Item 4.30.6.3',
             periodo: period

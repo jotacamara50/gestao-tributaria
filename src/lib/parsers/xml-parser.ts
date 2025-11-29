@@ -36,27 +36,42 @@ export async function parsePGDAS(xmlContent: string): Promise<PGDASData> {
     const result = await parser.parseStringPromise(xmlContent)
 
     // Estrutura real do PGDAS-D da Receita Federal
-    const declaracao = result.declaracaopgdas || result.pgdas || result.root || {}
+    const declaracao = result.declaracaopgdas || result.pgdas || result.root || result.declaracao || {}
     const cabecalho = declaracao.cabecalho || {}
-    const dadosapuracao = declaracao.dadosapuracao || declaracao.apuracao || {}
-    const totalizadores = dadosapuracao.totalizadores || {}
+    const dadosapuracao = declaracao.dadosapuracao || declaracao.apuracao || declaracao.apuracaodados || {}
+    const totalizadores = dadosapuracao.totalizadores || declaracao.totalizadores || {}
+    const dadosBasicos = declaracao.dadosbasicos || declaracao.identificacao || declaracao.dadosempresa || {}
 
     // Extrair CNPJ (pode estar em diferentes lugares)
     const cnpj = cabecalho.cnpj || 
                  declaracao.cnpj || 
-                 cabecalho.identificacao?.cnpj || 
+                 cabecalho.identificacao?.cnpj ||
+                 dadosBasicos.cnpj ||
+                 declaracao.dadosempresa?.cnpj ||
                  ''
 
-    // Período de apuração (MM/YYYY)
-    const periodo = cabecalho.periodo || 
-                    cabecalho.periodoapuracao || 
-                    dadosapuracao.periodo || 
-                    ''
+    // Período de apuração (MM/YYYY) - tag oficial PA vem como AAAAMM
+    const periodoRaw = cabecalho.periodo || 
+                       cabecalho.periodoapuracao || 
+                       dadosapuracao.periodo || 
+                       declaracao.pa || 
+                       dadosBasicos.pa ||
+                       ''
+    const periodo = (() => {
+        const clean = (periodoRaw || '').toString()
+        if (clean.length === 6) {
+            return `${clean.substring(4, 6)}/${clean.substring(0, 4)}`
+        }
+        if (clean.includes('/')) return clean
+        return clean
+    })()
 
     // Receita bruta total (últimos 12 meses)
     const receitaBrutaTotal = parseFloat(
         totalizadores.receitabruta12meses || 
         dadosapuracao.receitabrutatotal ||
+        declaracao.receitabruta12meses ||
+        declaracao.receitabrutaacumulada ||
         '0'
     )
 
@@ -65,6 +80,8 @@ export async function parsePGDAS(xmlContent: string): Promise<PGDASData> {
         dadosapuracao.receitabrutamensal ||
         dadosapuracao.receitames ||
         totalizadores.receitames ||
+        declaracao.receitabruta ||
+        declaracao.receitabrutaresumida ||
         '0'
     )
 
@@ -79,6 +96,7 @@ export async function parsePGDAS(xmlContent: string): Promise<PGDASData> {
     const baseCalculo = parseFloat(
         dadosapuracao.basecalculo ||
         dadosapuracao.receitabrutaacumulada ||
+        declaracao.basecalculo ||
         '0'
     )
 
@@ -86,6 +104,7 @@ export async function parsePGDAS(xmlContent: string): Promise<PGDASData> {
     const aliquota = parseFloat(
         dadosapuracao.aliquota ||
         dadosapuracao.aliquotaefetiva ||
+        declaracao.aliquotaefetiva ||
         '0'
     )
 
@@ -93,6 +112,9 @@ export async function parsePGDAS(xmlContent: string): Promise<PGDASData> {
     const valorDevido = parseFloat(
         dadosapuracao.valordevido ||
         totalizadores.valordevido ||
+        declaracao.valordevido ||
+        declaracao.valordas ||
+        declaracao.valordar ||
         '0'
     )
 
@@ -100,6 +122,7 @@ export async function parsePGDAS(xmlContent: string): Promise<PGDASData> {
     const valorDAS = parseFloat(
         dadosapuracao.valordas ||
         totalizadores.valordas ||
+        declaracao.valordas ||
         '0'
     )
 
@@ -107,6 +130,7 @@ export async function parsePGDAS(xmlContent: string): Promise<PGDASData> {
     const issRetido = parseFloat(
         dadosapuracao.issretido ||
         dadosapuracao.valorissretido ||
+        declaracao.issretido ||
         '0'
     )
 
@@ -114,6 +138,7 @@ export async function parsePGDAS(xmlContent: string): Promise<PGDASData> {
     const issSubstituicao = parseFloat(
         dadosapuracao.isssubstituicao ||
         dadosapuracao.valorissst ||
+        declaracao.issst ||
         '0'
     )
 
@@ -131,7 +156,7 @@ export async function parsePGDAS(xmlContent: string): Promise<PGDASData> {
         issRetido,
         issSubstituicao,
         dataApuracao: new Date(),
-        anexo: dadosapuracao.anexo || undefined
+        anexo: dadosapuracao.anexo || declaracao.anexo || undefined
     }
 }
 
