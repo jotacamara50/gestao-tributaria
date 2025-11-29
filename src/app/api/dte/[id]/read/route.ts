@@ -10,10 +10,14 @@ export async function PATCH(
     try {
         const session = await auth()
         if (!session) {
-            return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+            return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
         }
 
         const { id } = await params
+
+        const before = await prisma.dTEMessage.findUnique({
+            where: { id }
+        })
 
         // Marcar como lida
         const dteMessage = await prisma.dTEMessage.update({
@@ -23,11 +27,13 @@ export async function PATCH(
             }
         })
 
-        // Registrar auditoria
+        // Registrar auditoria com snapshot
         await createAuditLog({
             action: 'DTE_READ',
             resource: `DTE ${id}`,
             details: JSON.stringify({ messageId: id }),
+            before: before ? { readAt: before.readAt } : undefined,
+            after: { readAt: dteMessage.readAt }
         })
 
         return NextResponse.json({

@@ -8,6 +8,13 @@ export async function requireAuth() {
         redirect("/login")
     }
 
+    const mfaVerified = (session.user as any)?.mfaVerified
+    const mfaEnabled = (session.user as any)?.mfaEnabled
+
+    if (mfaEnabled && !mfaVerified) {
+        redirect("/login?error=MFA_REQUIRED")
+    }
+
     return session
 }
 
@@ -16,6 +23,13 @@ export async function requireRole(role: string) {
 
     if (!session) {
         redirect("/login")
+    }
+
+    const mfaVerified = (session.user as any)?.mfaVerified
+    const mfaEnabled = (session.user as any)?.mfaEnabled
+
+    if (mfaEnabled && !mfaVerified) {
+        redirect("/login?error=MFA_REQUIRED")
     }
 
     if (session.user?.role !== role && session.user?.role !== "ADMIN") {

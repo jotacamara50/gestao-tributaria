@@ -9,12 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Send, Eye, Filter, Download, FileText, AlertCircle } from 'lucide-react'
+import { Send, Eye, Filter, Download, FileText } from 'lucide-react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
     gerarNotificacaoFiscal,
-    gerarTermoFiscalizacao,
     gerarAutoInfracao
 } from '@/lib/pdf-generator'
 
@@ -44,21 +43,29 @@ interface Company {
     tradeName: string | null
 }
 
+interface Settings {
+    cityName?: string
+    stateName?: string | null
+    address?: string | null
+    logoUrl?: string | null
+}
+
 const tiposDTE = [
-    { value: 'notificacao', label: 'Notificação' },
-    { value: 'intimacao', label: 'Intimação' },
+    { value: 'notificacao', label: 'Notificacao' },
+    { value: 'intimacao', label: 'Intimacao' },
     { value: 'aviso', label: 'Aviso de Vencimento' },
-    { value: 'autoInfracao', label: 'Auto de Infração' },
+    { value: 'autoInfracao', label: 'Auto de Infracao' },
     { value: 'lembrete', label: 'Lembrete' }
 ]
 
 export default function DTEPage() {
     const [messages, setMessages] = useState<DTEMessage[]>([])
     const [companies, setCompanies] = useState<Company[]>([])
+    const [settings, setSettings] = useState<Settings | null>(null)
     const [loading, setLoading] = useState(true)
+    const [exportando, setExportando] = useState(false)
     const [filtroTipo, setFiltroTipo] = useState<string>('todos')
     const [filtroStatus, setFiltroStatus] = useState<string>('todos')
-    const [selectedMessage, setSelectedMessage] = useState<DTEMessage | null>(null)
     const [showNovaModal, setShowNovaModal] = useState(false)
     
     // Form nova mensagem
@@ -78,9 +85,10 @@ export default function DTEPage() {
     async function carregarDados() {
         try {
             setLoading(true)
-            const [messagesRes, companiesRes] = await Promise.all([
+            const [messagesRes, companiesRes, settingsRes] = await Promise.all([
                 fetch('/api/dte/send'),
-                fetch('/api/companies')
+                fetch('/api/companies'),
+                fetch('/api/settings')
             ])
 
             if (messagesRes.ok) {
@@ -91,6 +99,16 @@ export default function DTEPage() {
             if (companiesRes.ok) {
                 const data = await companiesRes.json()
                 setCompanies(data)
+            }
+
+            if (settingsRes.ok) {
+                const data = await settingsRes.json()
+                setSettings({
+                    cityName: data.cityName,
+                    stateName: data.stateName,
+                    address: data.address,
+                    logoUrl: data.logoUrl
+                })
             }
         } catch (error) {
             console.error('Erro ao carregar dados:', error)
@@ -154,6 +172,32 @@ export default function DTEPage() {
         }
     }
 
+    async function exportarLote(formato: 'txt' | 'xml' = 'txt') {
+        try {
+            setExportando(true)
+            const response = await fetch(`/api/dte/batch?format=${formato}`)
+
+            if (!response.ok) {
+                throw new Error('Falha ao gerar lote DTE')
+            }
+
+            const blob = await response.blob()
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement('a')
+            link.href = url
+            link.download = `lote-dte.${formato}`
+            document.body.appendChild(link)
+            link.click()
+            link.remove()
+            URL.revokeObjectURL(url)
+        } catch (error) {
+            console.error('Erro ao exportar lote DTE:', error)
+            alert('Erro ao gerar arquivo de lote DTE')
+        } finally {
+            setExportando(false)
+        }
+    }
+
     async function gerarPDF(message: DTEMessage) {
         const company = companies.find(c => c.id === message.companyId)
         if (!company) return
@@ -171,9 +215,9 @@ export default function DTEPage() {
                 },
                 assunto: message.subject,
                 conteudo: message.content,
-                prazo: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
-                fundamentacao: 'Lei Complementar nº 123/2006 e Lei Municipal nº XXX/2024'
-            })
+                prazo: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                fundamentacao: 'Lei Complementar 123/2006 e Lei Municipal'
+            }, settings || undefined)
         } else if (message.type === 'autoInfracao') {
             doc = gerarAutoInfracao({
                 numero: message.id.substring(0, 8).toUpperCase(),
@@ -185,16 +229,15 @@ export default function DTEPage() {
                 infracoesConstatadas: [
                     {
                         artigo: 'Art. 123 da Lei Municipal',
-                        descricao: 'Omissão de receitas',
+                        descricao: 'Omissao de receitas',
                         valorMulta: 1000
                     }
                 ],
                 valorTotal: 1000,
                 prazoDefesa: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                 prazoRecurso: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
-            })
+            }, settings || undefined)
         } else {
-            // Para outros tipos, gera um PDF simples com o conteúdo
             const jsPDF = (await import('jspdf')).default
             doc = new jsPDF()
             doc.setFontSize(16)
@@ -234,128 +277,136 @@ export default function DTEPage() {
 
     return (
         <div className="container mx-auto p-6 space-y-6">
-            {/* Header */}
             <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold">DTE - Domicílio Tributário Eletrônico</h1>
+                    <h1 className="text-3xl font-bold">DTE - Domicilio Tributario Eletronico</h1>
                     <p className="text-gray-600 mt-1">
-                        Gerenciamento de comunicações eletrônicas com contribuintes
+                        Gerenciamento de comunicacoes eletronicas com contribuintes
                     </p>
                 </div>
-                <Dialog open={showNovaModal} onOpenChange={setShowNovaModal}>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Send className="w-4 h-4 mr-2" />
-                            Nova Mensagem DTE
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-2xl">
-                        <DialogHeader>
-                            <DialogTitle>Enviar Nova Mensagem DTE</DialogTitle>
-                            <DialogDescription>
-                                Selecione o contribuinte e o tipo de mensagem que deseja enviar
-                            </DialogDescription>
-                        </DialogHeader>
-                        
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="company">Contribuinte</Label>
-                                    <Select
-                                        value={novaForm.companyId}
-                                        onValueChange={(value) => setNovaForm({ ...novaForm, companyId: value })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Selecione..." />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {companies.map(company => (
-                                                <SelectItem key={company.id} value={company.id}>
-                                                    {company.name} - {company.cnpj}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={() => exportarLote('txt')} disabled={exportando}>
+                        <Download className="w-4 h-4 mr-2" />
+                        Exportar Lote TXT
+                    </Button>
+                    <Button variant="ghost" onClick={() => exportarLote('xml')} disabled={exportando}>
+                        <FileText className="w-4 h-4 mr-2" />
+                        XML
+                    </Button>
+                    <Dialog open={showNovaModal} onOpenChange={setShowNovaModal}>
+                        <DialogTrigger asChild>
+                            <Button>
+                                <Send className="w-4 h-4 mr-2" />
+                                Nova Mensagem DTE
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                            <DialogHeader>
+                                <DialogTitle>Enviar Nova Mensagem DTE</DialogTitle>
+                                <DialogDescription>
+                                    Selecione o contribuinte e o tipo de mensagem que deseja enviar
+                                </DialogDescription>
+                            </DialogHeader>
+                            
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="company">Contribuinte</Label>
+                                        <Select
+                                            value={novaForm.companyId}
+                                            onValueChange={(value) => setNovaForm({ ...novaForm, companyId: value })}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecione..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {companies.map(company => (
+                                                    <SelectItem key={company.id} value={company.id}>
+                                                        {company.name} - {company.cnpj}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        <Label htmlFor="type">Tipo de Mensagem</Label>
+                                        <Select
+                                            value={novaForm.type}
+                                            onValueChange={(value) => setNovaForm({ ...novaForm, type: value })}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {tiposDTE.map(tipo => (
+                                                    <SelectItem key={tipo.value} value={tipo.value}>
+                                                        {tipo.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="prazo">Prazo</Label>
+                                        <Input
+                                            id="prazo"
+                                            type="date"
+                                            value={novaForm.prazo}
+                                            onChange={(e) => setNovaForm({ ...novaForm, prazo: e.target.value })}
+                                        />
+                                    </div>
+                                    
+                                    <div className="space-y-2">
+                                        <Label htmlFor="valorDevido">Valor Devido (R$)</Label>
+                                        <Input
+                                            id="valorDevido"
+                                            type="number"
+                                            step="0.01"
+                                            value={novaForm.valorDevido}
+                                            onChange={(e) => setNovaForm({ ...novaForm, valorDevido: e.target.value })}
+                                        />
+                                    </div>
                                 </div>
                                 
                                 <div className="space-y-2">
-                                    <Label htmlFor="type">Tipo de Mensagem</Label>
-                                    <Select
-                                        value={novaForm.type}
-                                        onValueChange={(value) => setNovaForm({ ...novaForm, type: value })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {tiposDTE.map(tipo => (
-                                                <SelectItem key={tipo.value} value={tipo.value}>
-                                                    {tipo.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="prazo">Prazo</Label>
+                                    <Label htmlFor="periodo">Periodo</Label>
                                     <Input
-                                        id="prazo"
-                                        type="date"
-                                        value={novaForm.prazo}
-                                        onChange={(e) => setNovaForm({ ...novaForm, prazo: e.target.value })}
+                                        id="periodo"
+                                        placeholder="Ex: Janeiro/2024"
+                                        value={novaForm.periodo}
+                                        onChange={(e) => setNovaForm({ ...novaForm, periodo: e.target.value })}
                                     />
                                 </div>
                                 
                                 <div className="space-y-2">
-                                    <Label htmlFor="valorDevido">Valor Devido (R$)</Label>
+                                    <Label htmlFor="motivo">Motivo/Observacoes</Label>
                                     <Input
-                                        id="valorDevido"
-                                        type="number"
-                                        step="0.01"
-                                        value={novaForm.valorDevido}
-                                        onChange={(e) => setNovaForm({ ...novaForm, valorDevido: e.target.value })}
+                                        id="motivo"
+                                        placeholder="Detalhes adicionais..."
+                                        value={novaForm.motivo}
+                                        onChange={(e) => setNovaForm({ ...novaForm, motivo: e.target.value })}
                                     />
                                 </div>
+                                
+                                <div className="flex justify-end gap-2">
+                                    <Button variant="outline" onClick={() => setShowNovaModal(false)}>
+                                        Cancelar
+                                    </Button>
+                                    <Button onClick={enviarDTE} disabled={!novaForm.companyId}>
+                                        <Send className="w-4 h-4 mr-2" />
+                                        Enviar DTE
+                                    </Button>
+                                </div>
                             </div>
-                            
-                            <div className="space-y-2">
-                                <Label htmlFor="periodo">Período</Label>
-                                <Input
-                                    id="periodo"
-                                    placeholder="Ex: Janeiro/2024"
-                                    value={novaForm.periodo}
-                                    onChange={(e) => setNovaForm({ ...novaForm, periodo: e.target.value })}
-                                />
-                            </div>
-                            
-                            <div className="space-y-2">
-                                <Label htmlFor="motivo">Motivo/Observações</Label>
-                                <Input
-                                    id="motivo"
-                                    placeholder="Detalhes adicionais..."
-                                    value={novaForm.motivo}
-                                    onChange={(e) => setNovaForm({ ...novaForm, motivo: e.target.value })}
-                                />
-                            </div>
-                            
-                            <div className="flex justify-end gap-2">
-                                <Button variant="outline" onClick={() => setShowNovaModal(false)}>
-                                    Cancelar
-                                </Button>
-                                <Button onClick={enviarDTE} disabled={!novaForm.companyId}>
-                                    <Send className="w-4 h-4 mr-2" />
-                                    Enviar DTE
-                                </Button>
-                            </div>
-                        </div>
-                    </DialogContent>
-                </Dialog>
+                        </DialogContent>
+                    </Dialog>
+                </div>
             </div>
 
-            {/* Estatísticas */}
             <div className="grid grid-cols-4 gap-4">
                 <Card>
                     <CardHeader className="pb-2">
@@ -386,7 +437,6 @@ export default function DTEPage() {
                 </Card>
             </div>
 
-            {/* Filtros e Tabela */}
             <Card>
                 <CardHeader>
                     <div className="flex justify-between items-center">
@@ -414,7 +464,7 @@ export default function DTEPage() {
                                 <SelectContent>
                                     <SelectItem value="todos">Todos Status</SelectItem>
                                     <SelectItem value="lidas">Lidas</SelectItem>
-                                    <SelectItem value="nao-lidas">Não Lidas</SelectItem>
+                                    <SelectItem value="nao-lidas">Nao Lidas</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -430,7 +480,7 @@ export default function DTEPage() {
                                 <TableHead>Assunto</TableHead>
                                 <TableHead>Enviado por</TableHead>
                                 <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Ações</TableHead>
+                                <TableHead className="text-right">Acoes</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -461,7 +511,7 @@ export default function DTEPage() {
                                             </Badge>
                                         ) : (
                                             <Badge variant="secondary">
-                                                Não lida
+                                                Nao lida
                                             </Badge>
                                         )}
                                     </TableCell>
@@ -473,7 +523,6 @@ export default function DTEPage() {
                                                         variant="ghost"
                                                         size="sm"
                                                         onClick={() => {
-                                                            setSelectedMessage(message)
                                                             if (!message.readAt) {
                                                                 marcarComoLida(message.id)
                                                             }
@@ -487,7 +536,7 @@ export default function DTEPage() {
                                                         <DialogTitle>{message.subject}</DialogTitle>
                                                         <DialogDescription>
                                                             {tiposDTE.find(t => t.value === message.type)?.label} enviada em{' '}
-                                                            {format(new Date(message.sentAt), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}
+                                                            {format(new Date(message.sentAt), "dd 'de' MMMM 'de' yyyy 'as' HH:mm", { locale: ptBR })}
                                                         </DialogDescription>
                                                     </DialogHeader>
                                                     <div className="mt-4 space-y-4">
@@ -497,7 +546,7 @@ export default function DTEPage() {
                                                             <p className="text-sm text-gray-600">CNPJ: {message.company.cnpj}</p>
                                                         </div>
                                                         <div>
-                                                            <h4 className="font-semibold mb-2">Conteúdo:</h4>
+                                                            <h4 className="font-semibold mb-2">Conteudo:</h4>
                                                             <div className="bg-gray-50 p-4 rounded-lg whitespace-pre-line">
                                                                 {message.content}
                                                             </div>

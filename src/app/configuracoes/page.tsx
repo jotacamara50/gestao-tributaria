@@ -119,7 +119,7 @@ export default function ConfiguracoesPage() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch("/api/upload", {
+      const response = await fetch("/api/upload/logo", {
         method: "POST",
         body: formData,
       });

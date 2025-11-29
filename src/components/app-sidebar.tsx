@@ -100,7 +100,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           {data.navMain.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton asChild tooltip={item.title}>
+              <SidebarMenuButton size="lg" asChild tooltip={item.title}>
                 <a href={item.url}>
                   <item.icon />
                   <span>{item.title}</span>

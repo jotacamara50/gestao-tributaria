@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { signIn } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,10 +11,13 @@ import { PieChart } from "lucide-react"
 
 export default function LoginPage() {
     const router = useRouter()
+    const searchParams = useSearchParams()
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
+    const [otp, setOtp] = useState("")
     const [error, setError] = useState("")
     const [loading, setLoading] = useState(false)
+    const [mfaRequired, setMfaRequired] = useState(searchParams.get("error") === "MFA_REQUIRED")
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -25,14 +28,29 @@ export default function LoginPage() {
             const result = await signIn("credentials", {
                 email,
                 password,
-                redirectTo: "/"
+                otp,
+                redirect: false
             }) as any
 
             if (result?.error) {
-                setError("Credenciais inválidas")
+                if (result.error === "MFA_REQUIRED") {
+                    setMfaRequired(true)
+                    setError("Confirme o codigo MFA antes de continuar.")
+                } else if (result.error === "INVALID_OTP") {
+                    setMfaRequired(true)
+                    setError("Codigo MFA invalido ou expirado.")
+                } else {
+                    setError("Credenciais invalidas")
+                }
+                setLoading(false)
+                return
+            }
+
+            if (result?.ok) {
+                router.push("/")
+            } else {
                 setLoading(false)
             }
-            // Se não houver erro, o NextAuth fará o redirect automaticamente
         } catch (error) {
             setError("Erro ao fazer login")
             setLoading(false)
@@ -47,9 +65,9 @@ export default function LoginPage() {
                         <PieChart className="h-8 w-8 text-primary-foreground" />
                     </div>
                     <div>
-                        <CardTitle className="text-2xl">Sistema de Gestão Tributária</CardTitle>
+                        <CardTitle className="text-2xl">Sistema de Gestao Tributaria</CardTitle>
                         <CardDescription>
-                            Faça login para acessar o sistema
+                            Faca login para acessar o sistema
                         </CardDescription>
                     </div>
                 </CardHeader>
@@ -78,6 +96,25 @@ export default function LoginPage() {
                                 disabled={loading}
                             />
                         </div>
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="otp">Codigo MFA</Label>
+                                <span className="text-xs text-muted-foreground">
+                                    {mfaRequired ? "Obrigatorio" : "Opcional (2FA)"}
+                                </span>
+                            </div>
+                            <Input
+                                id="otp"
+                                type="text"
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                placeholder="6 digitos do autenticador"
+                                value={otp}
+                                onChange={(e) => setOtp(e.target.value)}
+                                disabled={loading}
+                                required={mfaRequired}
+                            />
+                        </div>
                         {error && (
                             <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
                                 {error}
@@ -89,6 +126,7 @@ export default function LoginPage() {
                         <div className="text-xs text-center text-muted-foreground mt-4">
                             <p>Credenciais de teste:</p>
                             <p className="font-mono">admin@prefeitura.gov.br / admin123</p>
+                            <p className="font-mono">OTP: usar app TOTP ou codigo de emergencia se configurado</p>
                         </div>
                     </form>
                 </CardContent>

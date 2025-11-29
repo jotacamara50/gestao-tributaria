@@ -65,7 +65,14 @@ export async function POST(request: NextRequest) {
         await logAction(
             'CREATE_COMPANY',
             `Company:${company.id}`,
-            `Cadastrou empresa ${name} (${cnpj})`
+            `Cadastrou empresa ${name} (${cnpj})`,
+            null,
+            {
+                id: company.id,
+                cnpj: company.cnpj,
+                name: company.name,
+                createdAt: company.createdAt
+            }
         )
 
         return NextResponse.json({ 

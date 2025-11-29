@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     try {
         const session = await auth()
         if (!session) {
-            return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+            return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
         }
 
         const body = await request.json()
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
         // Validar tipo de template
         if (!dteTemplates[type as DTETemplateType]) {
-            return NextResponse.json({ error: 'Tipo de mensagem inválido' }, { status: 400 })
+            return NextResponse.json({ error: 'Tipo de mensagem invalido' }, { status: 400 })
         }
 
         // Buscar empresa
@@ -25,13 +25,13 @@ export async function POST(request: NextRequest) {
         })
 
         if (!company) {
-            return NextResponse.json({ error: 'Empresa não encontrada' }, { status: 404 })
+            return NextResponse.json({ error: 'Empresa nao encontrada' }, { status: 404 })
         }
 
         // Gerar mensagem usando template
         const template = dteTemplates[type as DTETemplateType]
         const subject = template.subject(params)
-        const body_content = template.body({
+        const bodyContent = template.body({
             empresaNome: company.name,
             cnpj: company.cnpj,
             ...params
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
                 companyId,
                 type,
                 subject,
-                content: body_content,
+                content: bodyContent,
                 createdBy: session.user.id,
             },
             include: {
@@ -51,15 +51,21 @@ export async function POST(request: NextRequest) {
             }
         })
 
-        // Registrar auditoria
+        // Registrar auditoria com snapshot do conteudo enviado
         await createAuditLog({
             action: 'DTE_SENT',
             resource: `DTE ${dteMessage.id}`,
             details: JSON.stringify({ type, companyId }),
+            after: {
+                companyId,
+                type,
+                subject,
+                sentAt: dteMessage.sentAt
+            }
         })
 
-        // Em produção, aqui seria feito o envio real via email/SMS
-        // Por ora, apenas salvamos no banco e o contribuinte verá no portal
+        // Em producao, aqui seria feito o envio real via email/SMS
+        // Por ora, apenas salvamos no banco e o contribuinte vera no portal
 
         return NextResponse.json({
             success: true,
@@ -84,7 +90,7 @@ export async function GET(request: NextRequest) {
     try {
         const session = await auth()
         if (!session) {
-            return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
+            return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
         }
 
         const { searchParams } = new URL(request.url)

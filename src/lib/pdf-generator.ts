@@ -19,6 +19,13 @@ const CONFIG = {
     }
 }
 
+export interface BrandingInfo {
+    logoUrl?: string
+    cityName?: string
+    stateName?: string | null
+    address?: string | null
+}
+
 interface Contribuinte {
     cnpj: string
     nome: string
@@ -67,27 +74,52 @@ interface AutoInfracaoParams {
     prazoRecurso: Date
 }
 
+function addLogo(doc: jsPDF, brand?: BrandingInfo) {
+    if (!brand?.logoUrl) return false
+    try {
+        const format = brand.logoUrl.includes('image/png') ? 'PNG' : 'JPEG'
+        doc.addImage(brand.logoUrl, format, CONFIG.margin, CONFIG.margin - 8, 20, 20)
+        return true
+    } catch (err) {
+        console.warn('Falha ao adicionar brasao no PDF:', err)
+        return false
+    }
+}
+
 /**
  * Gera cabeçalho padrão dos PDFs
  */
-function gerarCabecalho(doc: jsPDF, titulo: string) {
+function gerarCabecalho(doc: jsPDF, titulo: string, brand?: BrandingInfo) {
     const pageWidth = doc.internal.pageSize.width
     
-    // Brasão/Logo (placeholder - em produção seria uma imagem)
-    doc.setFillColor(30, 64, 175)
-    doc.circle(CONFIG.margin, CONFIG.margin, 8, 'F')
+    // Brasão/Logo
+    const logoDesenhado = addLogo(doc, brand)
+    if (!logoDesenhado) {
+        doc.setFillColor(30, 64, 175)
+        doc.circle(CONFIG.margin, CONFIG.margin, 8, 'F')
+    }
     
     // Cabeçalho oficial
     doc.setFontSize(CONFIG.fontSize.title)
     doc.setFont('helvetica', 'bold')
-    doc.text('PREFEITURA MUNICIPAL', pageWidth / 2, CONFIG.margin, { align: 'center' })
+    doc.text(
+        brand?.cityName ? `PREFEITURA DE ${brand.cityName.toUpperCase()}` : 'PREFEITURA MUNICIPAL',
+        pageWidth / 2,
+        CONFIG.margin,
+        { align: 'center' }
+    )
     
     doc.setFontSize(CONFIG.fontSize.subtitle)
-    doc.text('SECRETARIA DE FINANÇAS E TRIBUTAÇÃO', pageWidth / 2, CONFIG.margin + 7, { align: 'center' })
+    doc.text('SECRETARIA DE FINANCAS E TRIBUTACAO', pageWidth / 2, CONFIG.margin + 7, { align: 'center' })
     
     doc.setFontSize(CONFIG.fontSize.small)
     doc.setFont('helvetica', 'normal')
-    doc.text('Sistema de Gestão Tributária', pageWidth / 2, CONFIG.margin + 12, { align: 'center' })
+    doc.text(
+        brand?.address ? brand.address : 'Sistema de Gestao Tributaria',
+        pageWidth / 2,
+        CONFIG.margin + 12,
+        { align: 'center' }
+    )
     
     // Linha separadora
     doc.setDrawColor(30, 64, 175)
@@ -133,7 +165,7 @@ function gerarRodape(doc: jsPDF) {
         pageHeight - 12
     )
     doc.text(
-        `Página ${pageNumber}`,
+        `Pagina ${pageNumber}`,
         pageWidth - CONFIG.margin,
         pageHeight - 12,
         { align: 'right' }
@@ -168,14 +200,14 @@ function formatarValor(valor: number): string {
 /**
  * Gera PDF de Notificação Fiscal
  */
-export function gerarNotificacaoFiscal(params: NotificacaoParams): jsPDF {
+export function gerarNotificacaoFiscal(params: NotificacaoParams, brand?: BrandingInfo): jsPDF {
     const doc = new jsPDF()
-    let yPos = gerarCabecalho(doc, 'NOTIFICAÇÃO FISCAL')
+    let yPos = gerarCabecalho(doc, 'NOTIFICACAO FISCAL', brand)
     
     // Número e data
     doc.setFontSize(CONFIG.fontSize.normal)
     doc.setFont('helvetica', 'bold')
-    doc.text(`Notificação nº ${params.numero}`, CONFIG.margin, yPos)
+    doc.text(`Notificacao no ${params.numero}`, CONFIG.margin, yPos)
     doc.setFont('helvetica', 'normal')
     doc.text(
         `Data: ${params.data.toLocaleDateString('pt-BR')}`,
@@ -203,7 +235,7 @@ export function gerarNotificacaoFiscal(params: NotificacaoParams): jsPDF {
     }
     
     if (params.contribuinte.endereco) {
-        doc.text(`Endereço: ${params.contribuinte.endereco}`, CONFIG.margin + 5, yPos)
+        doc.text(`Endereco: ${params.contribuinte.endereco}`, CONFIG.margin + 5, yPos)
         yPos += CONFIG.lineHeight
     }
     
@@ -220,7 +252,7 @@ export function gerarNotificacaoFiscal(params: NotificacaoParams): jsPDF {
     
     // Conteúdo
     doc.setFont('helvetica', 'bold')
-    doc.text('CONTEÚDO:', CONFIG.margin, yPos)
+    doc.text('CONTEUDO:', CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight
     doc.setFont('helvetica', 'normal')
     const conteudoLines = doc.splitTextToSize(params.conteudo, doc.internal.pageSize.width - CONFIG.margin * 2 - 5)
@@ -229,7 +261,7 @@ export function gerarNotificacaoFiscal(params: NotificacaoParams): jsPDF {
     
     // Fundamentação legal
     doc.setFont('helvetica', 'bold')
-    doc.text('FUNDAMENTAÇÃO LEGAL:', CONFIG.margin, yPos)
+    doc.text('FUNDAMENTACAO LEGAL:', CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight
     doc.setFont('helvetica', 'normal')
     const fundamentacaoLines = doc.splitTextToSize(params.fundamentacao, doc.internal.pageSize.width - CONFIG.margin * 2 - 5)
@@ -240,7 +272,7 @@ export function gerarNotificacaoFiscal(params: NotificacaoParams): jsPDF {
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(220, 38, 38)
     doc.text(
-        `PRAZO PARA MANIFESTAÇÃO: ${params.prazo.toLocaleDateString('pt-BR')}`,
+        `PRAZO PARA MANIFESTACAO: ${params.prazo.toLocaleDateString('pt-BR')}`,
         CONFIG.margin,
         yPos
     )
@@ -253,14 +285,14 @@ export function gerarNotificacaoFiscal(params: NotificacaoParams): jsPDF {
 /**
  * Gera PDF de Termo de Fiscalização
  */
-export function gerarTermoFiscalizacao(params: TermoFiscalizacaoParams): jsPDF {
+export function gerarTermoFiscalizacao(params: TermoFiscalizacaoParams, brand?: BrandingInfo): jsPDF {
     const doc = new jsPDF()
-    let yPos = gerarCabecalho(doc, 'TERMO DE FISCALIZAÇÃO')
+    let yPos = gerarCabecalho(doc, 'TERMO DE FISCALIZACAO', brand)
     
     // Número e data
     doc.setFontSize(CONFIG.fontSize.normal)
     doc.setFont('helvetica', 'bold')
-    doc.text(`Termo nº ${params.numero}`, CONFIG.margin, yPos)
+    doc.text(`Termo no ${params.numero}`, CONFIG.margin, yPos)
     doc.setFont('helvetica', 'normal')
     doc.text(
         `Data: ${params.data.toLocaleDateString('pt-BR')}`,
@@ -284,7 +316,7 @@ export function gerarTermoFiscalizacao(params: TermoFiscalizacaoParams): jsPDF {
     
     // Período fiscalizado
     doc.setFont('helvetica', 'bold')
-    doc.text(`PERÍODO FISCALIZADO: ${params.periodo}`, CONFIG.margin, yPos)
+    doc.text(`PERIODO FISCALIZADO: ${params.periodo}`, CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight * 2
     
     // Tributos fiscalizados
@@ -312,12 +344,12 @@ export function gerarTermoFiscalizacao(params: TermoFiscalizacaoParams): jsPDF {
     // Divergências encontradas (tabela)
     if (params.divergenciasEncontradas.length > 0) {
         doc.setFont('helvetica', 'bold')
-        doc.text('DIVERGÊNCIAS ENCONTRADAS:', CONFIG.margin, yPos)
+        doc.text('DIVERGENCIAS ENCONTRADAS:', CONFIG.margin, yPos)
         yPos += CONFIG.lineHeight
         
         autoTable(doc, {
             startY: yPos,
-            head: [['Tipo', 'Descrição', 'Declarado', 'Apurado', 'Diferença']],
+            head: [['Tipo', 'Descricao', 'Declarado', 'Apurado', 'Diferenca']],
             body: params.divergenciasEncontradas.map(div => [
                 div.tipo,
                 div.descricao,
@@ -336,7 +368,7 @@ export function gerarTermoFiscalizacao(params: TermoFiscalizacaoParams): jsPDF {
     
     // Conclusão
     doc.setFont('helvetica', 'bold')
-    doc.text('CONCLUSÃO:', CONFIG.margin, yPos)
+    doc.text('CONCLUSAO:', CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight
     doc.setFont('helvetica', 'normal')
     const conclusaoLines = doc.splitTextToSize(params.conclusao, doc.internal.pageSize.width - CONFIG.margin * 2 - 5)
@@ -349,15 +381,15 @@ export function gerarTermoFiscalizacao(params: TermoFiscalizacaoParams): jsPDF {
 /**
  * Gera PDF de Auto de Infração
  */
-export function gerarAutoInfracao(params: AutoInfracaoParams): jsPDF {
+export function gerarAutoInfracao(params: AutoInfracaoParams, brand?: BrandingInfo): jsPDF {
     const doc = new jsPDF()
-    let yPos = gerarCabecalho(doc, 'AUTO DE INFRAÇÃO')
+    let yPos = gerarCabecalho(doc, 'AUTO DE INFRACAO', brand)
     
     // Número e data
     doc.setFontSize(CONFIG.fontSize.normal)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(220, 38, 38)
-    doc.text(`Auto de Infração nº ${params.numero}`, CONFIG.margin, yPos)
+    doc.text(`Auto de Infracao no ${params.numero}`, CONFIG.margin, yPos)
     doc.setTextColor(0, 0, 0)
     doc.setFont('helvetica', 'normal')
     doc.text(
@@ -381,7 +413,7 @@ export function gerarAutoInfracao(params: AutoInfracaoParams): jsPDF {
     yPos += CONFIG.lineHeight
     
     if (params.contribuinte.endereco) {
-        doc.text(`Endereço: ${params.contribuinte.endereco}`, CONFIG.margin + 5, yPos)
+        doc.text(`Endereco: ${params.contribuinte.endereco}`, CONFIG.margin + 5, yPos)
         yPos += CONFIG.lineHeight
     }
     
@@ -389,12 +421,12 @@ export function gerarAutoInfracao(params: AutoInfracaoParams): jsPDF {
     
     // Infrações constatadas (tabela)
     doc.setFont('helvetica', 'bold')
-    doc.text('INFRAÇÕES CONSTATADAS:', CONFIG.margin, yPos)
+    doc.text('INFRACOES CONSTATADAS:', CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight
     
     autoTable(doc, {
         startY: yPos,
-        head: [['Dispositivo Legal', 'Descrição da Infração', 'Valor da Multa']],
+        head: [['Dispositivo Legal', 'Descricao da Infracao', 'Valor da Multa']],
         body: params.infracoesConstatadas.map(inf => [
             inf.artigo,
             inf.descricao,
@@ -417,7 +449,7 @@ export function gerarAutoInfracao(params: AutoInfracaoParams): jsPDF {
     
     doc.setFont('helvetica', 'normal')
     doc.text(
-        `• Apresentar defesa administrativa até: ${params.prazoDefesa.toLocaleDateString('pt-BR')}`,
+        `• Apresentar defesa administrativa ate: ${params.prazoDefesa.toLocaleDateString('pt-BR')}`,
         CONFIG.margin + 5,
         yPos
     )
@@ -432,13 +464,13 @@ export function gerarAutoInfracao(params: AutoInfracaoParams): jsPDF {
     
     doc.setFontSize(CONFIG.fontSize.small)
     doc.text(
-        'O não pagamento no prazo estabelecido implicará em inscrição em Dívida Ativa e execução fiscal.',
+        'O nao pagamento no prazo estabelecido implicara em inscricao em Divida Ativa e execucao fiscal.',
         CONFIG.margin + 5,
         yPos
     )
     yPos += CONFIG.lineHeight
     doc.text(
-        'A apresentação de defesa suspende a exigibilidade do crédito tributário até decisão final.',
+        'A apresentacao de defesa suspende a exigibilidade do credito tributario ate decisao final.',
         CONFIG.margin + 5,
         yPos
     )
@@ -456,14 +488,14 @@ export function gerarRelatorioArrecadacao(dados: {
     metaMensal: number
     porAnexo: { anexo: string; valor: number }[]
     topContribuintes: { nome: string; cnpj: string; valor: number }[]
-}) {
+}, brand?: BrandingInfo) {
     const doc = new jsPDF()
-    let yPos = gerarCabecalho(doc, 'RELATÓRIO DE ARRECADAÇÃO')
+    let yPos = gerarCabecalho(doc, 'RELATORIO DE ARRECADACAO', brand)
     
     // Período
     doc.setFontSize(CONFIG.fontSize.subtitle)
     doc.setFont('helvetica', 'bold')
-    doc.text(`Período: ${dados.periodo}`, CONFIG.margin, yPos)
+    doc.text(`Periodo: ${dados.periodo}`, CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight * 2
     
     // Resumo geral
@@ -486,7 +518,7 @@ export function gerarRelatorioArrecadacao(dados: {
     
     // Arrecadação por Anexo
     doc.setFont('helvetica', 'bold')
-    doc.text('ARRECADAÇÃO POR ANEXO:', CONFIG.margin, yPos)
+    doc.text('ARRECADACAO POR ANEXO:', CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight
     
     autoTable(doc, {

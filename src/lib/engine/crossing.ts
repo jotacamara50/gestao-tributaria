@@ -1,7 +1,17 @@
 import { prisma } from '@/lib/prisma'
 
+export type DivergenciaTipo =
+    | 'OMISSAO_RECEITA'
+    | 'SUBLIMITE_EXCEDIDO'
+    | 'RETENCAO_INVALIDA'
+    | 'OMISSO'
+    | 'INADIMPLENTE'
+    | 'RETIFICACAO_A_MENOR'
+    | 'ALIQUOTA_DIVERGENTE'
+    | 'MUNICIPIO_DIVERGENTE'
+
 export interface DivergenciaDetalhada {
-    tipo: 'OMISSAO_RECEITA' | 'SUBLIMITE_EXCEDIDO' | 'RETENCAO_INVALIDA' | 'OMISSO' | 'INADIMPLENTE'
+    tipo: DivergenciaTipo
     descricao: string
     valor: number
     valorEsperado?: number
@@ -22,9 +32,41 @@ export interface ResultadoCruzamento {
     score: number // 0-100, quanto menor pior
 }
 
+function parseAliquotaFromXml(xml?: string | null): number | null {
+    if (!xml) return null
+    const match = xml.match(/aliquota[^0-9]*([0-9]+[.,]?[0-9]*)/i) || xml.match(/<Aliquota[^>]*>([0-9.,]+)<\/Aliquota>/i)
+    if (!match?.[1]) return null
+    const raw = match[1].replace(',', '.')
+    let value = parseFloat(raw)
+    if (isNaN(value)) return null
+    if (value > 1) {
+        value = value / 100
+    }
+    return value
+}
+
+function parseMunicipioFromXml(xml?: string | null): string | null {
+    if (!xml) return null
+    const municipioRegexes = [
+        /<CodigoMunicipioPrestacao[^>]*>([^<]+)<\/CodigoMunicipioPrestacao>/i,
+        /<cMunFG[^>]*>([^<]+)<\/cMunFG>/i,
+        /<MunicipioPrestador[^>]*>([^<]+)<\/MunicipioPrestador>/i,
+        /<municipioPrestacao[^>]*>([^<]+)<\/municipioPrestacao>/i
+    ]
+
+    for (const regex of municipioRegexes) {
+        const match = xml.match(regex)
+        if (match?.[1]) {
+            return match[1].trim().toLowerCase()
+        }
+    }
+    return null
+}
+
 /**
  * 1. CRUZAMENTO PGDAS vs NFSe
  * Compara receita declarada no PGDAS com soma de NFSe emitidas
+ * Inclui detecção de retificação a menor e de divergência de município
  */
 export async function cruzamentoPgdasNfse(
     companyId: string, 
@@ -37,16 +79,16 @@ export async function cruzamentoPgdasNfse(
     })
 
     if (!company) {
-        throw new Error('Empresa não encontrada')
+        throw new Error('Empresa nao encontrada')
     }
 
-    // Buscar declaração PGDAS do período
-    const declaration = await prisma.declaration.findFirst({
+    // Buscar todas as declaracoes PGDAS do periodo (para detectar retificacao)
+    const declarations = await prisma.declaration.findMany({
         where: { companyId, period, type: 'PGDAS' },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'asc' }
     })
 
-    if (!declaration) {
+    if (!declarations.length) {
         return {
             companyId,
             cnpj: company.cnpj,
@@ -58,12 +100,36 @@ export async function cruzamentoPgdasNfse(
         }
     }
 
-    // Calcular período
+    const declaration = declarations[declarations.length - 1]
+
+    // Detecao de retificacao a menor
+    if (declarations.length > 1) {
+        const original = declarations[0]
+        const reducaoReceita = original.revenue - declaration.revenue
+        const reducaoImposto = original.taxDue - declaration.taxDue
+
+        if (reducaoReceita > 0.01 || reducaoImposto > 0.01) {
+            const percentual = original.revenue > 0 ? (reducaoReceita / original.revenue) * 100 : 0
+            divergencias.push({
+                tipo: 'RETIFICACAO_A_MENOR',
+                descricao: `Declaracao retificadora reduziu a base de calculo em R$ ${reducaoReceita.toFixed(2)} (de ${original.revenue.toFixed(2)} para ${declaration.revenue.toFixed(2)}).`,
+                valor: reducaoReceita,
+                valorDeclarado: declaration.revenue,
+                valorEsperado: original.revenue,
+                percentualDivergencia: percentual,
+                gravidade: percentual > 20 ? 'CRITICA' : percentual > 10 ? 'ALTA' : 'MEDIA',
+                fundamentoLegal: 'Item 4.30.5.7 do TR / fiscalizacao de retificacao a menor',
+                periodo: period
+            })
+        }
+    }
+
+    // Calcular periodo
     const [month, year] = period.split('/')
     const startDate = new Date(parseInt(year), parseInt(month) - 1, 1)
     const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59)
 
-    // Buscar todas as NFSe emitidas no período
+    // Buscar NFSe do periodo
     const invoices = await prisma.invoice.findMany({
         where: {
             companyId,
@@ -74,39 +140,58 @@ export async function cruzamentoPgdasNfse(
     const totalNFSeEmitidas = invoices.reduce((sum, inv) => sum + inv.value, 0)
     const totalDeclaradoPGDAS = declaration.revenue
 
-    // Tolerância de 2% para diferenças de arredondamento
+    // Tolerancia de 2% para arredondamentos
     const tolerancia = totalDeclaradoPGDAS * 0.02
     const diferenca = Math.abs(totalNFSeEmitidas - totalDeclaradoPGDAS)
 
     if (diferenca > tolerancia) {
+        const percentual = totalDeclaradoPGDAS > 0 ? (diferenca / totalDeclaradoPGDAS) * 100 : 0
         let gravidade: 'BAIXA' | 'MEDIA' | 'ALTA' | 'CRITICA' = 'MEDIA'
-        const percentual = (diferenca / totalDeclaradoPGDAS) * 100
 
         if (percentual > 50) gravidade = 'CRITICA'
         else if (percentual > 20) gravidade = 'ALTA'
         else if (percentual > 5) gravidade = 'MEDIA'
         else gravidade = 'BAIXA'
 
-        let tipo: 'OMISSAO_RECEITA' = 'OMISSAO_RECEITA'
-        let descricao = ''
-
-        if (totalNFSeEmitidas > totalDeclaradoPGDAS) {
-            descricao = `Receita de NFSe (R$ ${totalNFSeEmitidas.toLocaleString('pt-BR', {minimumFractionDigits: 2})}) superior à receita declarada no PGDAS (R$ ${totalDeclaradoPGDAS.toLocaleString('pt-BR', {minimumFractionDigits: 2})}). Possível omissão de receita.`
-        } else {
-            descricao = `Receita declarada no PGDAS (R$ ${totalDeclaradoPGDAS.toLocaleString('pt-BR', {minimumFractionDigits: 2})}) superior às NFSe emitidas (R$ ${totalNFSeEmitidas.toLocaleString('pt-BR', {minimumFractionDigits: 2})}). Verificar outras fontes de receita ou inconsistência.`
-        }
+        const descricao = totalNFSeEmitidas > totalDeclaradoPGDAS
+            ? `Receita de NFSe (R$ ${totalNFSeEmitidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) superior a receita declarada no PGDAS (R$ ${totalDeclaradoPGDAS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Possivel omissao de receita.`
+            : `Receita declarada no PGDAS (R$ ${totalDeclaradoPGDAS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) superior as NFSe emitidas (R$ ${totalNFSeEmitidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Verificar outras fontes de receita ou inconsistencias.`
 
         divergencias.push({
-            tipo,
+            tipo: 'OMISSAO_RECEITA',
             descricao,
             valor: diferenca,
             valorEsperado: totalNFSeEmitidas,
             valorDeclarado: totalDeclaradoPGDAS,
             percentualDivergencia: percentual,
             gravidade,
-            fundamentoLegal: 'LC 123/2006, Art. 18, §§ 5º-C e 5º-H',
+            fundamentoLegal: 'LC 123/2006, Art. 18',
             periodo: period
         })
+    }
+
+    // Divergencia de municipio de prestacao
+    const settings = await prisma.settings.findUnique({ where: { id: 'default' } })
+    const municipioSede = settings?.cityName?.toLowerCase()
+    if (municipioSede) {
+        const invoicesFora = invoices.filter(inv => {
+            const municipioPrestacao = parseMunicipioFromXml(inv.xmlContent)
+            if (!municipioPrestacao) return false
+            return !municipioPrestacao.includes(municipioSede)
+        })
+
+        const valorFora = invoicesFora.reduce((sum, inv) => sum + inv.value, 0)
+        if (valorFora > 0) {
+            divergencias.push({
+                tipo: 'MUNICIPIO_DIVERGENTE',
+                descricao: `Ha NFSe com municipio de prestacao diferente de ${settings?.cityName}. Valor total fora do municipio: R$ ${valorFora.toFixed(2)}. Conferir se ISS foi recolhido ao municipio de destino.`,
+                valor: valorFora,
+                valorDeclarado: totalDeclaradoPGDAS,
+                gravidade: valorFora > 10000 ? 'ALTA' : 'MEDIA',
+                fundamentoLegal: 'Item 4.30.5.4 do TR - ISS devido ao municipio competente',
+                periodo: period
+            })
+        }
     }
 
     return {
@@ -121,7 +206,7 @@ export async function cruzamentoPgdasNfse(
 }
 
 /**
- * 2. VERIFICAÇÃO DE SUBLIMITES
+ * 2. VERIFICACAO DE SUBLIMITES
  * LC 123/2006: Sublimite Estadual R$ 3,6M e Municipal R$ 4,8M
  */
 export async function verificarSublimites(
@@ -135,10 +220,9 @@ export async function verificarSublimites(
     })
 
     if (!company) {
-        throw new Error('Empresa não encontrada')
+        throw new Error('Empresa nao encontrada')
     }
 
-    // Buscar configurações dos sublimites
     const settings = await prisma.settings.findUnique({
         where: { id: 'default' }
     })
@@ -146,7 +230,6 @@ export async function verificarSublimites(
     const sublimiteEstadual = settings?.sublimitEstadual || 3600000
     const sublimiteMunicipal = settings?.sublimitMunicipal || 4800000
 
-    // Buscar todas as declarações do ano
     const declarations = await prisma.declaration.findMany({
         where: {
             companyId,
@@ -157,14 +240,13 @@ export async function verificarSublimites(
 
     const receitaBrutaAnual = declarations.reduce((sum, decl) => sum + decl.revenue, 0)
 
-    // Verificar sublimite estadual
     if (receitaBrutaAnual > sublimiteEstadual) {
         const excesso = receitaBrutaAnual - sublimiteEstadual
         const percentual = (excesso / sublimiteEstadual) * 100
 
         divergencias.push({
             tipo: 'SUBLIMITE_EXCEDIDO',
-            descricao: `Faturamento anual de R$ ${receitaBrutaAnual.toLocaleString('pt-BR', {minimumFractionDigits: 2})} excede o sublimite estadual de R$ ${sublimiteEstadual.toLocaleString('pt-BR', {minimumFractionDigits: 2})} em ${percentual.toFixed(2)}%. Empresa deve recolher ICMS em guia separada.`,
+            descricao: `Faturamento anual de R$ ${receitaBrutaAnual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} excede o sublimite estadual de R$ ${sublimiteEstadual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em ${percentual.toFixed(2)}%.`,
             valor: excesso,
             valorEsperado: sublimiteEstadual,
             valorDeclarado: receitaBrutaAnual,
@@ -175,20 +257,19 @@ export async function verificarSublimites(
         })
     }
 
-    // Verificar sublimite municipal
     if (receitaBrutaAnual > sublimiteMunicipal) {
         const excesso = receitaBrutaAnual - sublimiteMunicipal
         const percentual = (excesso / sublimiteMunicipal) * 100
 
         divergencias.push({
             tipo: 'SUBLIMITE_EXCEDIDO',
-            descricao: `Faturamento anual de R$ ${receitaBrutaAnual.toLocaleString('pt-BR', {minimumFractionDigits: 2})} excede o sublimite municipal de R$ ${sublimiteMunicipal.toLocaleString('pt-BR', {minimumFractionDigits: 2})} em ${percentual.toFixed(2)}%. Empresa deve recolher ISS em guia separada.`,
+            descricao: `Faturamento anual de R$ ${receitaBrutaAnual.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} excede o sublimite municipal de R$ ${sublimiteMunicipal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em ${percentual.toFixed(2)}%.`,
             valor: excesso,
             valorEsperado: sublimiteMunicipal,
             valorDeclarado: receitaBrutaAnual,
             percentualDivergencia: percentual,
             gravidade: percentual > 50 ? 'CRITICA' : percentual > 20 ? 'ALTA' : 'MEDIA',
-            fundamentoLegal: 'LC 123/2006, Art. 18, § 5º-C',
+            fundamentoLegal: 'LC 123/2006, Art. 18',
             periodo: year.toString()
         })
     }
@@ -205,8 +286,8 @@ export async function verificarSublimites(
 }
 
 /**
- * 3. VALIDAÇÃO DE RETENÇÕES NA FONTE
- * Verifica se retenções de ISS declaradas batem com NFSe
+ * 3. VALIDACAO DE RETENCOES NA FONTE E ALIQUOTAS
+ * Compara aliquota efetiva declarada com aliquota retida em NFSe
  */
 export async function validarRetencoes(
     companyId: string,
@@ -219,10 +300,9 @@ export async function validarRetencoes(
     })
 
     if (!company) {
-        throw new Error('Empresa não encontrada')
+        throw new Error('Empresa nao encontrada')
     }
 
-    // Buscar declaração do período
     const declaration = await prisma.declaration.findFirst({
         where: { companyId, period, type: 'PGDAS' }
     })
@@ -239,12 +319,10 @@ export async function validarRetencoes(
         }
     }
 
-    // Calcular período
     const [month, year] = period.split('/')
     const startDate = new Date(parseInt(year), parseInt(month) - 1, 1)
     const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59)
 
-    // Buscar NFSe do período
     const invoices = await prisma.invoice.findMany({
         where: {
             companyId,
@@ -252,30 +330,58 @@ export async function validarRetencoes(
         }
     })
 
-    // Calcular total de retenções nas NFSe
-    // Nota: Aqui seria necessário ter um campo 'issRetido' ou 'valorRetido' nas invoices
-    // Por enquanto, vamos simular
-    const totalRetidoNFSe = invoices
-        .filter(inv => inv.xmlContent?.includes('ISSRetido') || inv.xmlContent?.includes('issretido'))
-        .reduce((sum, inv) => sum + (inv.value * 0.05), 0) // Simulação: 5% de ISS retido
+    const aliquotaEfetiva = declaration.revenue > 0 ? declaration.taxDue / declaration.revenue : 0
 
-    // O valor retido deveria estar no XML do PGDAS
-    // Por enquanto, vamos assumir que está no campo taxDue
-    const retidoDeclarado = declaration.taxDue * 0.1 // Simulação
+    const invoicesComRetencao = invoices.filter(inv => 
+        (inv.xmlContent && /iss.?ret/i.test(inv.xmlContent)) || inv.xmlContent?.includes('RETIDO')
+    )
 
-    const diferenca = Math.abs(totalRetidoNFSe - retidoDeclarado)
+    const aliquotasRetidas = invoicesComRetencao.map(inv => {
+        const parsed = parseAliquotaFromXml(inv.xmlContent)
+        if (parsed !== null) return parsed
+        // fallback: assume 5% retencao se marcado como retido
+        return 0.05
+    })
+
+    const aliquotaRetidaMedia = aliquotasRetidas.length
+        ? aliquotasRetidas.reduce((sum, a) => sum + a, 0) / aliquotasRetidas.length
+        : 0
+
+    const valorRetidoNFSe = invoicesComRetencao.reduce((sum, inv, idx) => {
+        const aliq = aliquotasRetidas[idx] || aliquotaRetidaMedia || 0
+        return sum + inv.value * aliq
+    }, 0)
+
+    // Se houve retencao na nota mas aliquota efetiva declarada diverge muito
+    const diferencaAliquota = Math.abs(aliquotaEfetiva - aliquotaRetidaMedia)
+    if (invoicesComRetencao.length > 0 && diferencaAliquota > 0.005) {
+        divergencias.push({
+            tipo: 'ALIQUOTA_DIVERGENTE',
+            descricao: `Aliquota efetiva declarada no PGDAS (${(aliquotaEfetiva * 100).toFixed(2)}%) difere da aliquota retida em NFSe (${(aliquotaRetidaMedia * 100).toFixed(2)}%).`,
+            valor: valorRetidoNFSe,
+            valorDeclarado: declaration.taxDue,
+            percentualDivergencia: diferencaAliquota * 100,
+            gravidade: diferencaAliquota > 0.02 ? 'ALTA' : 'MEDIA',
+            fundamentoLegal: 'Item 4.30.6.3 do TR - cruzamento de aliquotas declaradas vs retidas',
+            periodo: period
+        })
+    }
+
+    // Divergencia de retencao declarada vs NFSe
+    const retidoDeclarado = declaration.taxDue * 0.1 // placeholder ate termos campo especifico
+    const diferencaValor = Math.abs(valorRetidoNFSe - retidoDeclarado)
     const tolerancia = retidoDeclarado * 0.05
 
-    if (diferenca > tolerancia && retidoDeclarado > 0) {
+    if (retidoDeclarado > 0 && diferencaValor > tolerancia) {
         divergencias.push({
             tipo: 'RETENCAO_INVALIDA',
-            descricao: `Retenções de ISS nas NFSe (R$ ${totalRetidoNFSe.toLocaleString('pt-BR', {minimumFractionDigits: 2})}) divergem do declarado (R$ ${retidoDeclarado.toLocaleString('pt-BR', {minimumFractionDigits: 2})}). Verificar lançamentos.`,
-            valor: diferenca,
-            valorEsperado: totalRetidoNFSe,
+            descricao: `Retencoes de ISS nas NFSe (R$ ${valorRetidoNFSe.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) divergem do declarado (R$ ${retidoDeclarado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Verificar lancamentos.`,
+            valor: diferencaValor,
+            valorEsperado: valorRetidoNFSe,
             valorDeclarado: retidoDeclarado,
-            percentualDivergencia: (diferenca / retidoDeclarado) * 100,
-            gravidade: diferenca > 1000 ? 'ALTA' : 'MEDIA',
-            fundamentoLegal: 'Lei Complementar Municipal de ISS',
+            percentualDivergencia: retidoDeclarado > 0 ? (diferencaValor / retidoDeclarado) * 100 : undefined,
+            gravidade: diferencaValor > 1000 ? 'ALTA' : 'MEDIA',
+            fundamentoLegal: 'Lei Complementar Municipal de ISS / Item 4.30.6.3',
             periodo: period
         })
     }
@@ -292,11 +398,9 @@ export async function validarRetencoes(
 }
 
 /**
- * 4. DETECÇÃO DE OMISSOS
- * Identifica empresas ativas que não declararam PGDAS no período
+ * 4. DETECCAO DE OMISSOS
  */
 export async function detectarOmissos(period: string): Promise<ResultadoCruzamento[]> {
-    // Buscar todas as empresas ativas no Simples Nacional
     const empresasAtivas = await prisma.company.findMany({
         where: {
             status: 'Ativo',
@@ -304,7 +408,6 @@ export async function detectarOmissos(period: string): Promise<ResultadoCruzamen
         }
     })
 
-    // Buscar declarações do período
     const declaracoes = await prisma.declaration.findMany({
         where: {
             period,
@@ -321,7 +424,7 @@ export async function detectarOmissos(period: string): Promise<ResultadoCruzamen
         razaoSocial: empresa.name,
         divergencias: [{
             tipo: 'OMISSO',
-            descricao: `Empresa ativa no Simples Nacional não apresentou declaração PGDAS-D no período ${period}`,
+            descricao: `Empresa ativa no Simples Nacional nao apresentou declaracao PGDAS-D no periodo ${period}`,
             valor: 0,
             gravidade: 'ALTA',
             fundamentoLegal: 'RES CGSN 140/2018, Art. 38',
@@ -334,13 +437,11 @@ export async function detectarOmissos(period: string): Promise<ResultadoCruzamen
 }
 
 /**
- * 5. DETECÇÃO DE INADIMPLENTES
- * Cruza declarações com repasses efetivamente recebidos (DAF607 ou similar)
+ * 5. DETECCAO DE INADIMPLENTES
  */
 export async function detectarInadimplentes(period: string): Promise<ResultadoCruzamento[]> {
     const resultados: ResultadoCruzamento[] = []
 
-    // Buscar todas as declarações do período
     const declaracoes = await prisma.declaration.findMany({
         where: {
             period,
@@ -351,7 +452,6 @@ export async function detectarInadimplentes(period: string): Promise<ResultadoCr
         }
     })
 
-    // Buscar repasses do período (DAF607 ou arrecadação municipal)
     const [month, year] = period.split('/')
     const startDate = new Date(parseInt(year), parseInt(month) - 1, 1)
     const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59)
@@ -363,13 +463,11 @@ export async function detectarInadimplentes(period: string): Promise<ResultadoCr
     })
 
     for (const declaracao of declaracoes) {
-        // Procurar repasse correspondente
         const repasseEncontrado = repasses.find(r => 
             r.description?.includes(declaracao.company.cnpj) ||
             r.origin?.includes(declaracao.company.cnpj)
         )
 
-        // Se declarou imposto devido mas não há repasse
         if (declaracao.taxDue > 100 && !repasseEncontrado) {
             resultados.push({
                 companyId: declaracao.companyId,
@@ -377,7 +475,7 @@ export async function detectarInadimplentes(period: string): Promise<ResultadoCr
                 razaoSocial: declaracao.company.name,
                 divergencias: [{
                     tipo: 'INADIMPLENTE',
-                    descricao: `Empresa declarou R$ ${declaracao.taxDue.toLocaleString('pt-BR', {minimumFractionDigits: 2})} de ISS devido no período ${period}, mas não há registro de pagamento no DAF607`,
+                    descricao: `Empresa declarou R$ ${declaracao.taxDue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} de ISS devido no periodo ${period}, mas nao ha registro de pagamento.`,
                     valor: declaracao.taxDue,
                     valorDeclarado: declaracao.taxDue,
                     valorEsperado: 0,
@@ -397,7 +495,7 @@ export async function detectarInadimplentes(period: string): Promise<ResultadoCr
 }
 
 /**
- * EXECUTOR GERAL - Executa todos os cruzamentos para uma empresa
+ * EXECUTOR GERAL
  */
 export async function executarTodosCruzamentos(
     companyId: string,
@@ -406,27 +504,21 @@ export async function executarTodosCruzamentos(
     const [month, year] = period.split('/')
     const anoAtual = parseInt(year)
 
-    // Executar todos os cruzamentos
     const resultado1 = await cruzamentoPgdasNfse(companyId, period)
     const resultado2 = await verificarSublimites(companyId, anoAtual)
     const resultado3 = await validarRetencoes(companyId, period)
 
-    // Consolidar todas as divergências
     const todasDivergencias = [
         ...resultado1.divergencias,
         ...resultado2.divergencias,
         ...resultado3.divergencias
     ]
 
-    // Calcular score geral (média ponderada)
     const scoreGeral = Math.round(
         (resultado1.score * 0.4 + resultado2.score * 0.35 + resultado3.score * 0.25)
     )
 
-    // Salvar divergências no banco
     for (const div of todasDivergencias) {
-        const divId = `${companyId}-${period}-${div.tipo}-${Date.now()}`
-        
         await prisma.divergence.create({
             data: {
                 companyId,
@@ -438,11 +530,10 @@ export async function executarTodosCruzamentos(
         })
     }
 
-    // Atualizar nível de risco da empresa
     let nivelRisco = 'Baixo'
-    if (scoreGeral < 30) nivelRisco = 'Crítico'
+    if (scoreGeral < 30) nivelRisco = 'Critico'
     else if (scoreGeral < 50) nivelRisco = 'Alto'
-    else if (scoreGeral < 75) nivelRisco = 'Médio'
+    else if (scoreGeral < 75) nivelRisco = 'Medio'
 
     await prisma.company.update({
         where: { id: companyId },
@@ -461,7 +552,7 @@ export async function executarTodosCruzamentos(
 }
 
 /**
- * EXECUTOR EM LOTE - Executa cruzamentos para todas as empresas
+ * EXECUTOR EM LOTE
  */
 export async function executarCruzamentoEmLote(period: string): Promise<{
     processadas: number
@@ -480,7 +571,6 @@ export async function executarCruzamentoEmLote(period: string): Promise<{
     let comDivergencias = 0
     let totalDivergencias = 0
 
-    // Processar cada empresa
     for (const empresa of empresas) {
         const resultado = await executarTodosCruzamentos(empresa.id, period)
         if (resultado.totalDivergencias > 0) {
@@ -489,10 +579,7 @@ export async function executarCruzamentoEmLote(period: string): Promise<{
         }
     }
 
-    // Detectar omissos
     const omissos = await detectarOmissos(period)
-    
-    // Detectar inadimplentes
     const inadimplentes = await detectarInadimplentes(period)
 
     return {

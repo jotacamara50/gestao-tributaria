@@ -5,6 +5,8 @@ export interface AuditLogData {
     action: string
     resource: string
     details?: string
+    before?: unknown
+    after?: unknown
     ipAddress?: string
 }
 
@@ -17,7 +19,9 @@ export async function createAuditLog(data: AuditLogData) {
             action: data.action,
             resource: data.resource,
             details: data.details,
-            ipAddress: data.ipAddress
+            ipAddress: data.ipAddress,
+            dataBefore: data.before ? JSON.stringify(data.before) : undefined,
+            dataAfter: data.after ? JSON.stringify(data.after) : undefined
         }
     })
 }
@@ -25,7 +29,9 @@ export async function createAuditLog(data: AuditLogData) {
 export async function logAction(
     action: string,
     resource: string,
-    details?: any
+    details?: any,
+    before?: unknown,
+    after?: unknown
 ) {
     const session = await auth()
 
@@ -34,7 +40,9 @@ export async function logAction(
             userId: session?.user?.id,
             action,
             resource,
-            details: typeof details === 'string' ? details : JSON.stringify(details)
+            details: typeof details === 'string' ? details : JSON.stringify(details),
+            dataBefore: before ? JSON.stringify(before) : undefined,
+            dataAfter: after ? JSON.stringify(after) : undefined
         }
     })
 }

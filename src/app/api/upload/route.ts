@@ -78,11 +78,17 @@ export async function POST(request: NextRequest) {
         }
 
         // Log the upload action
-        await logAction('FILE_UPLOAD', fileType, {
-            fileName: file.name,
-            fileSize: file.size,
-            result: result
-        })
+        await logAction(
+            'FILE_UPLOAD',
+            fileType,
+            {
+                fileName: file.name,
+                fileSize: file.size,
+                result: result
+            },
+            null,
+            result
+        )
 
         return NextResponse.json(result)
     } catch (error: any) {
