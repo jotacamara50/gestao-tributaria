@@ -71,6 +71,7 @@ async function main() {
     }
     console.log(`Companies created: ${companies.length}`)
 
+    await prisma.iSSRate.deleteMany({})
     await prisma.iSSRate.createMany({
         data: [
             { cnae: '6201500', description: 'Desenvolvimento de software', rate: 0.05 },

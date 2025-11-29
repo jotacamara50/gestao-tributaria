@@ -30,6 +30,11 @@ export async function POST(request: NextRequest) {
         if (!body.email || !body.password || !body.cpf || !body.name) {
             return NextResponse.json({ error: 'Campos obrigatorios faltando' }, { status: 400 })
         }
+        const password: string = body.password
+        const strong = password.length >= 8 && /[A-Za-z]/.test(password) && /\d/.test(password)
+        if (!strong) {
+            return NextResponse.json({ error: 'Senha fraca. Minimo 8 caracteres, incluir letra e numero.' }, { status: 400 })
+        }
         const hashedPassword = await bcrypt.hash(body.password, 10)
 
         const user = await prisma.user.create({

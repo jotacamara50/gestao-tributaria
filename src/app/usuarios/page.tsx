@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { Plus } from "lucide-react"
+import { formatCPF } from "@/lib/utils"
 
 type UserRow = {
     id: string
@@ -188,7 +189,7 @@ export default function UsuariosPage() {
                             {users.map((u) => (
                                 <TableRow key={u.id}>
                                     <TableCell>{u.name}</TableCell>
-                                    <TableCell className="font-mono">{u.cpf}</TableCell>
+                                    <TableCell className="font-mono">{formatCPF(u.cpf)}</TableCell>
                                     <TableCell>{u.email}</TableCell>
                                     <TableCell>{u.matricula}</TableCell>
                                     <TableCell>{u.cargo}</TableCell>
