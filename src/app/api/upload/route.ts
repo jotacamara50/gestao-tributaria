@@ -1,34 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { parsePGDAS, parseNFSe } from '@/lib/parsers/xml-parser'
-import { parseDAF607 } from '@/lib/parsers/csv-parser'
+import { importDAF607, importDEFIS, importNFSe, importPGDAS } from '@/lib/importers'
 import { logAction } from '@/lib/audit'
-
-function formatCNPJ(cnpj: string) {
-    const digits = cnpj.replace(/\D/g, '')
-    if (digits.length !== 14) return cnpj
-    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`
-}
-
-async function findCompanyByCnpj(raw: string) {
-    const clean = raw.replace(/\D/g, '')
-    const formatted = formatCNPJ(clean)
-    return prisma.company.findFirst({
-        where: {
-            OR: [
-                { cnpj: clean },
-                { cnpj: formatted }
-            ]
-        }
-    })
-}
 
 export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData()
         const file = formData.get('file') as File
-        const fileType = formData.get('type') as string
+        const fileType = (formData.get('type') as string)?.toUpperCase()
 
         if (!file) {
             return NextResponse.json({ error: 'No file provided' }, { status: 400 })
@@ -39,56 +18,17 @@ export async function POST(request: NextRequest) {
 
         switch (fileType) {
             case 'PGDAS':
-                const pgdasData = await parsePGDAS(content)
-                const company = await findCompanyByCnpj(pgdasData.cnpj)
-
-                if (company) {
-                    const declaration = await prisma.declaration.create({
-                        data: {
-                            companyId: company.id,
-                            period: pgdasData.period,
-                            type: 'PGDAS',
-                            revenue: pgdasData.receitaBrutaMensal,
-                            taxDue: pgdasData.valorDevido,
-                            xmlContent: content,
-                        }
-                    })
-                    result = { declaration, message: 'PGDAS imported successfully' }
-                } else {
-                    result = { error: 'Company not found', cnpj: pgdasData.cnpj }
-                }
+                result = await importPGDAS(content)
                 break
-
+            case 'DEFIS':
+                result = await importDEFIS(content)
+                break
             case 'NFSE':
-                const nfseData = await parseNFSe(content)
-                const prestador = await findCompanyByCnpj(nfseData.prestadorCnpj)
-
-                if (prestador) {
-                    const invoice = await prisma.invoice.create({
-                        data: {
-                            companyId: prestador.id,
-                            number: nfseData.numero,
-                            issueDate: nfseData.dataEmissao,
-                            value: nfseData.valorServicos,
-                            serviceCode: nfseData.itemListaServico,
-                            tomadorCnpj: nfseData.tomadorCnpj,
-                            xmlContent: content,
-                        }
-                    })
-                    result = { invoice, message: 'NFS-e imported successfully' }
-                } else {
-                    result = { error: 'Company not found', cnpj: nfseData.prestadorCnpj }
-                }
+                result = await importNFSe(content)
                 break
-
             case 'DAF607':
-                const dafData = parseDAF607(content)
-                const repasses = await prisma.repasse.createMany({
-                    data: dafData
-                })
-                result = { count: repasses.count, message: `${repasses.count} repasses imported` }
+                result = await importDAF607(content)
                 break
-
             default:
                 return NextResponse.json({ error: 'Invalid file type' }, { status: 400 })
         }
@@ -106,7 +46,8 @@ export async function POST(request: NextRequest) {
             result
         )
 
-        return NextResponse.json(result)
+        const status = result?.error ? 404 : 200
+        return NextResponse.json(result, { status })
     } catch (error: any) {
         console.error('Upload error:', error)
         return NextResponse.json({ error: error.message }, { status: 500 })

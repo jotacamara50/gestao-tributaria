@@ -69,6 +69,8 @@ export async function parsePGDAS(xmlContent: string): Promise<PGDASData> {
     // Receita bruta total (últimos 12 meses)
     const receitaBrutaTotal = parseFloat(
         totalizadores.receitabruta12meses || 
+        dadosapuracao.receitabruta12meses ||
+        dadosapuracao.receita12meses ||
         dadosapuracao.receitabrutatotal ||
         declaracao.receitabruta12meses ||
         declaracao.receitabrutaacumulada ||
