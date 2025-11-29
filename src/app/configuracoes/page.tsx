@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, FileText, Phone, Mail, MapPin, Save } from "lucide-react";
+import { Building2, FileText, Phone, Mail, MapPin, Save, Shield } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Settings {
@@ -31,6 +31,7 @@ export default function ConfiguracoesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -143,6 +144,33 @@ export default function ConfiguracoesPage() {
       });
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleGenerateLGPD = async () => {
+    setGenerating(true);
+    try {
+      const resp = await fetch("/api/reports/lgpd");
+      if (!resp.ok) throw new Error("Falha ao gerar");
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "relatorio-lgpd.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({
+        title: "Relatorio LGPD gerado",
+        description: "Download iniciado",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Nao foi possivel gerar o relatorio LGPD",
+        variant: "destructive",
+      });
+    } finally {
+      setGenerating(false);
     }
   };
 
@@ -417,10 +445,14 @@ export default function ConfiguracoesPage() {
         </TabsContent>
       </Tabs>
 
-      <div className="flex justify-end mt-6">
+      <div className="flex justify-end mt-6 gap-2">
+        <Button variant="outline" onClick={handleGenerateLGPD} disabled={generating}>
+          <Shield className="mr-2 h-4 w-4" />
+          {generating ? "Gerando..." : "Gerar Relatorio LGPD"}
+        </Button>
         <Button onClick={handleSave} disabled={saving} size="lg">
           <Save className="mr-2 h-4 w-4" />
-          {saving ? "Salvando..." : "Salvar Todas as Alterações"}
+          {saving ? "Salvando..." : "Salvar Todas as Alteracoes"}
         </Button>
       </div>
     </div>

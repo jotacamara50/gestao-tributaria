@@ -101,6 +101,9 @@ export default function RelatoriosPage() {
   const [limites, setLimites] = useState<LimiteItem[]>([])
   const [divergentes, setDivergentes] = useState<DivergenteItem[]>([])
   const [repasses, setRepasses] = useState<RepasseBBItem[]>([])
+  const [repassesMin, setRepassesMin] = useState("")
+  const [repassesMax, setRepassesMax] = useState("")
+  const [repassesOrigem, setRepassesOrigem] = useState("")
   const [historico, setHistorico] = useState<HistoricoItem[]>([])
   const [historicoMeta, setHistoricoMeta] = useState<{ cnpj?: string; razaoSocial?: string }>({})
   const [cnpjFiltro, setCnpjFiltro] = useState("")
@@ -170,6 +173,9 @@ export default function RelatoriosPage() {
     try {
       const query = new URLSearchParams({ period: periodo })
       if (cnpjFiltro) query.append("cnpj", cnpjFiltro)
+      if (repassesMin) query.append("min", repassesMin)
+      if (repassesMax) query.append("max", repassesMax)
+      if (repassesOrigem) query.append("origin", repassesOrigem)
       const resp = await fetch(`/api/reports/repasses-bb?${query.toString()}`)
       if (resp.ok) setRepasses(await resp.json())
     } finally { setLoading(false) }
@@ -250,7 +256,7 @@ export default function RelatoriosPage() {
           <TabsTrigger value="retencoes">Retencoes/Aliquotas</TabsTrigger>
           <TabsTrigger value="limites">Sublimites</TabsTrigger>
           <TabsTrigger value="divergentes">Divergentes</TabsTrigger>
-          <TabsTrigger value="repasses">Repasses BB</TabsTrigger>
+          <TabsTrigger value="repasses">Arrecadacao DAF607</TabsTrigger>
           <TabsTrigger value="historico">Historico Contribuinte</TabsTrigger>
         </TabsList>
 
@@ -597,9 +603,9 @@ export default function RelatoriosPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <FileSpreadsheet className="h-5 w-5" /> Repasses Banco do Brasil (DAF607)
+                <FileSpreadsheet className="h-5 w-5" /> Arrecadacao DAF607
               </CardTitle>
-              <CardDescription>Listagem de repasses conciliados por CNPJ.</CardDescription>
+              <CardDescription>Consulta por faixa de valor e origem (SIAFI, Parcelamento, etc.).</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-4 items-end flex-wrap">
@@ -610,6 +616,18 @@ export default function RelatoriosPage() {
                 <div className="space-y-2">
                   <Label>Filtro CNPJ (opcional)</Label>
                   <Input value={cnpjFiltro} onChange={(e) => setCnpjFiltro(e.target.value)} placeholder="Somente numeros" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Valor Minimo (R$)</Label>
+                  <Input type="number" value={repassesMin} onChange={(e) => setRepassesMin(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Valor Maximo (R$)</Label>
+                  <Input type="number" value={repassesMax} onChange={(e) => setRepassesMax(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Origem</Label>
+                  <Input value={repassesOrigem} onChange={(e) => setRepassesOrigem(e.target.value)} placeholder="Ex: SIAFI, Parcelamento" />
                 </div>
                 <Button onClick={loadRepasses}>
                   <Filter className="mr-2 h-4 w-4" /> Gerar

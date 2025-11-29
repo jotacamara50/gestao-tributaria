@@ -25,6 +25,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { signOut } from "next-auth/react"
 
 const data = {
   user: {
@@ -165,11 +166,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               onClick={async (e) => {
                 e.preventDefault()
                 try {
-                  await fetch("/api/auth/signout", { method: "POST" })
+                  await signOut({ callbackUrl: "/login", redirect: true })
                 } catch {
                   // ignore
                 } finally {
-                  window.location.href = "/login"
+                  if (typeof window !== "undefined") {
+                    ;(window as any).__USER_ROLE = null
+                  }
                 }
               }}
             >

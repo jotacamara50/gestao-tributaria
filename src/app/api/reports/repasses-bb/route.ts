@@ -13,6 +13,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const period = searchParams.get('period') || searchParams.get('periodo')
     const cnpjFilter = (searchParams.get('cnpj') || '').replace(/\D/g, '')
+    const min = parseFloat(searchParams.get('min') || '0')
+    const max = parseFloat(searchParams.get('max') || '0')
+    const originFilter = (searchParams.get('origin') || '').toLowerCase()
 
     if (!period) {
         return NextResponse.json({ error: 'period is required (MM/YYYY)' }, { status: 400 })
@@ -37,6 +40,11 @@ export async function GET(request: NextRequest) {
                 if (!cnpjFilter) return true
                 const concat = `${rep.description || ''} ${rep.origin || ''}`.replace(/\D/g, '')
                 return concat.includes(cnpjFilter)
+            })
+            .filter(rep => {
+                const amountOk = (!min || rep.amount >= min) && (!max || rep.amount <= max)
+                const originOk = originFilter ? ((rep.origin || '').toLowerCase().includes(originFilter)) : true
+                return amountOk && originOk
             })
             .map(rep => {
                 const concat = `${rep.description || ''} ${rep.origin || ''}`.replace(/\D/g, '')

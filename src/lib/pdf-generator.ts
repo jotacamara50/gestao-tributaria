@@ -563,6 +563,51 @@ export function gerarRelatorioArrecadacao(dados: {
 }
 
 /**
+ * Gera Relatorio LGPD (RIPD simplificado para POC)
+ */
+export function gerarRelatorioLGPD(params: {
+    municipio?: string
+    dadosColetados: string[]
+    finalidade: string
+    retencao: string
+}, brand?: BrandingInfo) {
+    const doc = new jsPDF()
+    let yPos = gerarCabecalho(doc, 'RELATORIO DE IMPACTO LGPD', brand)
+
+    doc.setFontSize(CONFIG.fontSize.subtitle)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`Municipio: ${params.municipio || 'Nao informado'}`, CONFIG.margin, yPos)
+    yPos += CONFIG.lineHeight * 2
+
+    doc.setFont('helvetica', 'bold')
+    doc.text('Dados coletados:', CONFIG.margin, yPos)
+    yPos += CONFIG.lineHeight
+    doc.setFont('helvetica', 'normal')
+    params.dadosColetados.forEach((dado) => {
+        doc.text(`- ${dado}`, CONFIG.margin + 5, yPos)
+        yPos += CONFIG.lineHeight
+    })
+    yPos += CONFIG.lineHeight
+
+    doc.setFont('helvetica', 'bold')
+    doc.text('Finalidade:', CONFIG.margin, yPos)
+    yPos += CONFIG.lineHeight
+    doc.setFont('helvetica', 'normal')
+    const finalidadeLines = doc.splitTextToSize(params.finalidade, doc.internal.pageSize.width - CONFIG.margin * 2)
+    doc.text(finalidadeLines, CONFIG.margin + 5, yPos)
+    yPos += CONFIG.lineHeight * finalidadeLines.length + CONFIG.lineHeight
+
+    doc.setFont('helvetica', 'bold')
+    doc.text('Tempo de retencao:', CONFIG.margin, yPos)
+    yPos += CONFIG.lineHeight
+    doc.setFont('helvetica', 'normal')
+    doc.text(params.retencao, CONFIG.margin + 5, yPos)
+
+    gerarRodape(doc)
+    return doc
+}
+
+/**
  * Gera PDF de Relatorio Fiscal Individual (workflow)
  */
 export function gerarRelatorioFiscalIndividual(params: {

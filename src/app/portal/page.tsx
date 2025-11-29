@@ -1,0 +1,112 @@
+"use client"
+
+import { useState } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { formatCPF } from "@/lib/utils"
+
+type Message = {
+    id: string
+    type: string
+    subject: string
+    content: string
+    sentAt: string
+    readAt?: string | null
+}
+
+export default function PortalPage() {
+    const [cnpj, setCnpj] = useState("")
+    const [company, setCompany] = useState<{ id: string; name: string; cnpj: string } | null>(null)
+    const [messages, setMessages] = useState<Message[]>([])
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    async function buscar() {
+        setLoading(true)
+        setError(null)
+        try {
+            const resp = await fetch(`/api/portal/messages?cnpj=${encodeURIComponent(cnpj)}`)
+            const data = await resp.json()
+            if (!resp.ok) {
+                setError(data?.error || "Erro ao buscar")
+                setCompany(null)
+                setMessages([])
+                return
+            }
+            setCompany(data.company)
+            setMessages(data.messages || [])
+        } catch {
+            setError("Falha ao conectar")
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    async function marcarLido(id: string) {
+        await fetch(`/api/portal/messages/${id}/read`, { method: "PATCH" })
+        setMessages((prev) => prev.map((m) => m.id === id ? { ...m, readAt: new Date().toISOString() } : m))
+    }
+
+    return (
+        <div className="flex flex-col gap-6 max-w-4xl mx-auto">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Ambiente do Contribuinte</CardTitle>
+                    <CardDescription>Acesse notificacoes e mensagens enviadas pelo municipio.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    <div className="grid gap-2">
+                        <label className="text-sm font-medium">CNPJ</label>
+                        <Input value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="Digite o CNPJ" />
+                    </div>
+                    <Button onClick={buscar} disabled={loading || !cnpj}>Entrar</Button>
+                    {error && <div className="text-sm text-red-600">{error}</div>}
+                    {company && (
+                        <div className="text-sm text-muted-foreground">
+                            {company.name} — {company.cnpj}
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+
+            {company && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Notificacoes</CardTitle>
+                        <CardDescription>Mensagens do DTE enviadas para sua empresa.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                        {messages.map((m) => (
+                            <div key={m.id} className="border rounded-md p-4 space-y-2">
+                                <div className="flex justify-between items-center">
+                                    <div className="font-semibold">{m.subject}</div>
+                                    <Badge variant={m.readAt ? "secondary" : "destructive"}>
+                                        {m.readAt ? "Lida" : "Nova"}
+                                    </Badge>
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                    Enviada em {new Date(m.sentAt).toLocaleString("pt-BR")}
+                                </div>
+                                <Separator />
+                                <div className="text-sm whitespace-pre-line">
+                                    {m.content}
+                                </div>
+                                {!m.readAt && (
+                                    <Button size="sm" onClick={() => marcarLido(m.id)}>
+                                        Dar ciente
+                                    </Button>
+                                )}
+                            </div>
+                        ))}
+                        {!messages.length && (
+                            <div className="text-sm text-muted-foreground">Nenhuma mensagem.</div>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+        </div>
+    )
+}
