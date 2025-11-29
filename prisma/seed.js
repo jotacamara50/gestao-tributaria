@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs'
+const { PrismaClient } = require('@prisma/client')
+const bcrypt = require('bcryptjs')
 
 const prisma = new PrismaClient()
 
@@ -68,8 +68,7 @@ async function main() {
         data: [
             { cnae: '6201500', description: 'Desenvolvimento de software', rate: 0.05 },
             { cnae: '6920601', description: 'Consultoria contabilidade', rate: 0.02 }
-        ],
-        skipDuplicates: true
+        ]
     })
 
     const alfa = await prisma.company.findUnique({ where: { cnpj: '12.345.678/0001-90' } })
