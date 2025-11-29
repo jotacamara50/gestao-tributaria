@@ -2,7 +2,7 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-// Configurações padrão do PDF
+// Configuracoes padrao do PDF
 const CONFIG = {
     margin: 20,
     lineHeight: 7,
@@ -88,19 +88,19 @@ function addLogo(doc: jsPDF, brand?: BrandingInfo) {
 }
 
 /**
- * Gera cabeçalho padrão dos PDFs
+ * Gera cabecalho padrao dos PDFs
  */
 function gerarCabecalho(doc: jsPDF, titulo: string, brand?: BrandingInfo) {
     const pageWidth = doc.internal.pageSize.width
     
-    // Brasão/Logo
+    // Brasao/Logo
     const logoDesenhado = addLogo(doc, brand)
     if (!logoDesenhado) {
         doc.setFillColor(30, 64, 175)
         doc.circle(CONFIG.margin, CONFIG.margin, 8, 'F')
     }
     
-    // Cabeçalho oficial
+    // Cabecalho oficial
     doc.setFontSize(CONFIG.fontSize.title)
     doc.setFont('helvetica', 'bold')
     doc.text(
@@ -127,7 +127,7 @@ function gerarCabecalho(doc: jsPDF, titulo: string, brand?: BrandingInfo) {
     doc.setLineWidth(0.5)
     doc.line(CONFIG.margin, CONFIG.margin + 18, pageWidth - CONFIG.margin, CONFIG.margin + 18)
     
-    // Título do documento
+    // Titulo do documento
     doc.setFontSize(CONFIG.fontSize.title)
     doc.setFont('helvetica', 'bold')
     doc.text(titulo, pageWidth / 2, CONFIG.margin + 30, { align: 'center' })
@@ -136,7 +136,7 @@ function gerarCabecalho(doc: jsPDF, titulo: string, brand?: BrandingInfo) {
 }
 
 /**
- * Gera rodapé padrão com numeração e data
+ * Gera rodape padrao com numeracao e data
  */
 function gerarRodape(doc: jsPDF) {
     const pageHeight = doc.internal.pageSize.height
@@ -152,7 +152,7 @@ function gerarRodape(doc: jsPDF) {
     doc.setLineWidth(0.3)
     doc.line(CONFIG.margin, pageHeight - 20, pageWidth - CONFIG.margin, pageHeight - 20)
     
-    // Texto do rodapé
+    // Texto do rodape
     const dataEmissao = new Date().toLocaleDateString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
@@ -189,7 +189,7 @@ function formatarCNPJ(cnpj: string): string {
 }
 
 /**
- * Formata valor monetário
+ * Formata valor monetario
  */
 function formatarValor(valor: number): string {
     return valor.toLocaleString('pt-BR', {
@@ -199,13 +199,13 @@ function formatarValor(valor: number): string {
 }
 
 /**
- * Gera PDF de Notificação Fiscal
+ * Gera PDF de Notificacao Fiscal
  */
 export function gerarNotificacaoFiscal(params: NotificacaoParams, brand?: BrandingInfo): jsPDF {
     const doc = new jsPDF()
     let yPos = gerarCabecalho(doc, 'NOTIFICACAO FISCAL', brand)
     
-    // Número e data
+    // Numero e data
     doc.setFontSize(CONFIG.fontSize.normal)
     doc.setFont('helvetica', 'bold')
     doc.text(`Notificacao no ${params.numero}`, CONFIG.margin, yPos)
@@ -251,7 +251,7 @@ export function gerarNotificacaoFiscal(params: NotificacaoParams, brand?: Brandi
     doc.text(assuntoLines, CONFIG.margin + 5, yPos)
     yPos += CONFIG.lineHeight * assuntoLines.length + CONFIG.lineHeight
     
-    // Conteúdo
+    // Conteudo
     doc.setFont('helvetica', 'bold')
     doc.text('CONTEUDO:', CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight
@@ -260,7 +260,7 @@ export function gerarNotificacaoFiscal(params: NotificacaoParams, brand?: Brandi
     doc.text(conteudoLines, CONFIG.margin + 5, yPos)
     yPos += CONFIG.lineHeight * conteudoLines.length + CONFIG.lineHeight
     
-    // Fundamentação legal
+    // Fundamentacao legal
     doc.setFont('helvetica', 'bold')
     doc.text('FUNDAMENTACAO LEGAL:', CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight
@@ -269,7 +269,7 @@ export function gerarNotificacaoFiscal(params: NotificacaoParams, brand?: Brandi
     doc.text(fundamentacaoLines, CONFIG.margin + 5, yPos)
     yPos += CONFIG.lineHeight * fundamentacaoLines.length + CONFIG.lineHeight * 2
     
-    // Prazo para manifestação
+    // Prazo para manifestacao
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(220, 38, 38)
     doc.text(
@@ -284,13 +284,13 @@ export function gerarNotificacaoFiscal(params: NotificacaoParams, brand?: Brandi
 }
 
 /**
- * Gera PDF de Termo de Fiscalização
+ * Gera PDF de Termo de Fiscalizacao
  */
 export function gerarTermoFiscalizacao(params: TermoFiscalizacaoParams, brand?: BrandingInfo): jsPDF {
     const doc = new jsPDF()
     let yPos = gerarCabecalho(doc, 'TERMO DE FISCALIZACAO', brand)
     
-    // Número e data
+    // Numero e data
     doc.setFontSize(CONFIG.fontSize.normal)
     doc.setFont('helvetica', 'bold')
     doc.text(`Termo no ${params.numero}`, CONFIG.margin, yPos)
@@ -315,7 +315,7 @@ export function gerarTermoFiscalizacao(params: TermoFiscalizacaoParams, brand?: 
     doc.text(`CNPJ: ${formatarCNPJ(params.contribuinte.cnpj)}`, CONFIG.margin + 5, yPos)
     yPos += CONFIG.lineHeight * 2
     
-    // Período fiscalizado
+    // Periodo fiscalizado
     doc.setFont('helvetica', 'bold')
     doc.text(`PERIODO FISCALIZADO: ${params.periodo}`, CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight * 2
@@ -326,7 +326,7 @@ export function gerarTermoFiscalizacao(params: TermoFiscalizacaoParams, brand?: 
     yPos += CONFIG.lineHeight
     doc.setFont('helvetica', 'normal')
     params.tributos.forEach(tributo => {
-        doc.text(`• ${tributo}`, CONFIG.margin + 5, yPos)
+        doc.text(` ${tributo}`, CONFIG.margin + 5, yPos)
         yPos += CONFIG.lineHeight
     })
     yPos += CONFIG.lineHeight
@@ -337,12 +337,12 @@ export function gerarTermoFiscalizacao(params: TermoFiscalizacaoParams, brand?: 
     yPos += CONFIG.lineHeight
     doc.setFont('helvetica', 'normal')
     params.documentosAnalisados.forEach(doc_item => {
-        doc.text(`• ${doc_item}`, CONFIG.margin + 5, yPos)
+        doc.text(` ${doc_item}`, CONFIG.margin + 5, yPos)
         yPos += CONFIG.lineHeight
     })
     yPos += CONFIG.lineHeight * 2
     
-    // Divergências encontradas (tabela)
+    // Divergencias encontradas (tabela)
     if (params.divergenciasEncontradas.length > 0) {
         doc.setFont('helvetica', 'bold')
         doc.text('DIVERGENCIAS ENCONTRADAS:', CONFIG.margin, yPos)
@@ -367,7 +367,7 @@ export function gerarTermoFiscalizacao(params: TermoFiscalizacaoParams, brand?: 
         yPos = (doc as any).lastAutoTable.finalY + CONFIG.lineHeight * 2
     }
     
-    // Conclusão
+    // Conclusao
     doc.setFont('helvetica', 'bold')
     doc.text('CONCLUSAO:', CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight
@@ -380,13 +380,13 @@ export function gerarTermoFiscalizacao(params: TermoFiscalizacaoParams, brand?: 
 }
 
 /**
- * Gera PDF de Auto de Infração
+ * Gera PDF de Auto de Infracao
  */
 export function gerarAutoInfracao(params: AutoInfracaoParams, brand?: BrandingInfo): jsPDF {
     const doc = new jsPDF()
     let yPos = gerarCabecalho(doc, 'AUTO DE INFRACAO', brand)
     
-    // Número e data
+    // Numero e data
     doc.setFontSize(CONFIG.fontSize.normal)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(220, 38, 38)
@@ -420,7 +420,7 @@ export function gerarAutoInfracao(params: AutoInfracaoParams, brand?: BrandingIn
     
     yPos += CONFIG.lineHeight * 2
     
-    // Infrações constatadas (tabela)
+    // Infracoes constatadas (tabela)
     doc.setFont('helvetica', 'bold')
     doc.text('INFRACOES CONSTATADAS:', CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight
@@ -443,21 +443,21 @@ export function gerarAutoInfracao(params: AutoInfracaoParams, brand?: BrandingIn
     
     yPos = (doc as any).lastAutoTable.finalY + CONFIG.lineHeight * 2
     
-    // Informações sobre defesa e recurso
+    // Informacoes sobre defesa e recurso
     doc.setFont('helvetica', 'bold')
     doc.text('DIREITOS DO AUTUADO:', CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight
     
     doc.setFont('helvetica', 'normal')
     doc.text(
-        `• Apresentar defesa administrativa ate: ${params.prazoDefesa.toLocaleDateString('pt-BR')}`,
+        ` Apresentar defesa administrativa ate: ${params.prazoDefesa.toLocaleDateString('pt-BR')}`,
         CONFIG.margin + 5,
         yPos
     )
     yPos += CONFIG.lineHeight
     
     doc.text(
-        `• Prazo para recurso: ${params.prazoRecurso.toLocaleDateString('pt-BR')}`,
+        ` Prazo para recurso: ${params.prazoRecurso.toLocaleDateString('pt-BR')}`,
         CONFIG.margin + 5,
         yPos
     )
@@ -481,7 +481,7 @@ export function gerarAutoInfracao(params: AutoInfracaoParams, brand?: BrandingIn
 }
 
 /**
- * Gera PDF de Relatório de Arrecadação
+ * Gera PDF de Relatorio de Arrecadacao
  */
 export function gerarRelatorioArrecadacao(dados: {
     periodo: string
@@ -493,7 +493,7 @@ export function gerarRelatorioArrecadacao(dados: {
     const doc = new jsPDF()
     let yPos = gerarCabecalho(doc, 'RELATORIO DE ARRECADACAO', brand)
     
-    // Período
+    // Periodo
     doc.setFontSize(CONFIG.fontSize.subtitle)
     doc.setFont('helvetica', 'bold')
     doc.text(`Periodo: ${dados.periodo}`, CONFIG.margin, yPos)
@@ -517,7 +517,7 @@ export function gerarRelatorioArrecadacao(dados: {
     doc.setTextColor(0, 0, 0)
     yPos += CONFIG.lineHeight * 2
     
-    // Arrecadação por Anexo
+    // Arrecadacao por Anexo
     doc.setFont('helvetica', 'bold')
     doc.text('ARRECADACAO POR ANEXO:', CONFIG.margin, yPos)
     yPos += CONFIG.lineHeight
@@ -557,7 +557,127 @@ export function gerarRelatorioArrecadacao(dados: {
         styles: { fontSize: CONFIG.fontSize.small },
         margin: { left: CONFIG.margin, right: CONFIG.margin }
     })
-    
+
+    gerarRodape(doc)
+    return doc
+}
+
+/**
+ * Gera PDF de Relatorio Fiscal Individual (workflow)
+ */
+export function gerarRelatorioFiscalIndividual(params: {
+    action: {
+        number: string
+        type: string
+        subject: string
+        status: string
+        openedAt: Date
+        closedAt?: Date | null
+        description?: string | null
+    }
+    company: {
+        name: string
+        tradeName?: string | null
+        cnpj: string
+        address?: string | null
+    }
+    history: { type: string; note: string; createdAt: Date }[]
+    attachments: { name: string; mimeType?: string | null; size?: number | null }[]
+}, brand?: BrandingInfo) {
+    const doc = new jsPDF()
+    let yPos = gerarCabecalho(doc, 'RELATORIO FISCAL INDIVIDUAL', brand)
+
+    doc.setFontSize(CONFIG.fontSize.subtitle)
+    doc.setFont('helvetica', 'bold')
+    doc.text(`Acao: ${params.action.number} - ${params.action.type}`, CONFIG.margin, yPos)
+    yPos += CONFIG.lineHeight
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Status: ${params.action.status}`, CONFIG.margin, yPos)
+    yPos += CONFIG.lineHeight
+    doc.text(`Aberta em: ${params.action.openedAt.toLocaleDateString('pt-BR')}`, CONFIG.margin, yPos)
+    if (params.action.closedAt) {
+        doc.text(`Encerrada em: ${params.action.closedAt.toLocaleDateString('pt-BR')}`, CONFIG.margin + 160, yPos)
+    }
+    yPos += CONFIG.lineHeight * 2
+
+    // Contribuinte
+    doc.setFont('helvetica', 'bold')
+    doc.text('CONTRIBUINTE:', CONFIG.margin, yPos)
+    yPos += CONFIG.lineHeight
+    doc.setFont('helvetica', 'normal')
+    doc.text(`Razao Social: ${params.company.name}`, CONFIG.margin + 5, yPos)
+    yPos += CONFIG.lineHeight
+    if (params.company.tradeName) {
+        doc.text(`Nome Fantasia: ${params.company.tradeName}`, CONFIG.margin + 5, yPos)
+        yPos += CONFIG.lineHeight
+    }
+    doc.text(`CNPJ: ${formatarCNPJ(params.company.cnpj)}`, CONFIG.margin + 5, yPos)
+    yPos += CONFIG.lineHeight
+    if (params.company.address) {
+        doc.text(`Endereco: ${params.company.address}`, CONFIG.margin + 5, yPos)
+        yPos += CONFIG.lineHeight
+    }
+    yPos += CONFIG.lineHeight
+
+    // Assunto/descricao
+    doc.setFont('helvetica', 'bold')
+    doc.text('ASSUNTO:', CONFIG.margin, yPos)
+    yPos += CONFIG.lineHeight
+    doc.setFont('helvetica', 'normal')
+    const assuntoLines = doc.splitTextToSize(params.action.subject, doc.internal.pageSize.width - CONFIG.margin * 2)
+    doc.text(assuntoLines, CONFIG.margin + 5, yPos)
+    yPos += CONFIG.lineHeight * assuntoLines.length + CONFIG.lineHeight
+
+    if (params.action.description) {
+        doc.setFont('helvetica', 'bold')
+        doc.text('DESCRICAO:', CONFIG.margin, yPos)
+        yPos += CONFIG.lineHeight
+        doc.setFont('helvetica', 'normal')
+        const descLines = doc.splitTextToSize(params.action.description, doc.internal.pageSize.width - CONFIG.margin * 2)
+        doc.text(descLines, CONFIG.margin + 5, yPos)
+        yPos += CONFIG.lineHeight * descLines.length + CONFIG.lineHeight
+    }
+
+    // Historico
+    if (params.history.length > 0) {
+        doc.setFont('helvetica', 'bold')
+        doc.text('HISTORICO:', CONFIG.margin, yPos)
+        yPos += CONFIG.lineHeight
+
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Data', 'Tipo', 'Nota']],
+            body: params.history.map(h => [
+                new Date(h.createdAt).toLocaleDateString('pt-BR'),
+                h.type,
+                h.note
+            ]),
+            styles: { fontSize: CONFIG.fontSize.small },
+            margin: { left: CONFIG.margin, right: CONFIG.margin },
+            headStyles: { fillColor: [30, 64, 175] }
+        })
+        yPos = (doc as any).lastAutoTable.finalY + CONFIG.lineHeight
+    }
+
+    // Anexos
+    if (params.attachments.length > 0) {
+        doc.setFont('helvetica', 'bold')
+        doc.text('ANEXOS:', CONFIG.margin, yPos)
+        yPos += CONFIG.lineHeight
+        autoTable(doc, {
+            startY: yPos,
+            head: [['Nome', 'Tipo', 'Tamanho']],
+            body: params.attachments.map(att => [
+                att.name,
+                att.mimeType || '-',
+                att.size ? `${(att.size / 1024).toFixed(1)} KB` : '-'
+            ]),
+            styles: { fontSize: CONFIG.fontSize.small },
+            margin: { left: CONFIG.margin, right: CONFIG.margin },
+            headStyles: { fillColor: [30, 64, 175] }
+        })
+    }
+
     gerarRodape(doc)
     return doc
 }

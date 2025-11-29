@@ -28,6 +28,8 @@ model Company {
   partners              Partner[]
   enquadramentoHistory  EnquadramentoHistory[]
   dteMessages           DTEMessage[]
+  fiscalActions         FiscalAction[]
+  fiscalHistory         FiscalHistory[]
 }
 
 model Invoice {
@@ -174,4 +176,50 @@ model User {
   updatedAt   DateTime     @updatedAt
   logs        AuditLog[]
   dteMessages DTEMessage[]
+  fiscalActions FiscalAction[]
+  fiscalHistory FiscalHistory[]
+}
+
+model FiscalAction {
+  id          String   @id @default(cuid())
+  companyId   String
+  number      String
+  type        String
+  subject     String
+  description String?
+  status      String   @default("Aberta")
+  openedAt    DateTime @default(now())
+  closedAt    DateTime?
+  createdBy   String?
+
+  company     Company  @relation(fields: [companyId], references: [id])
+  user        User?    @relation(fields: [createdBy], references: [id])
+  attachments FiscalAttachment[]
+  history     FiscalHistory[]
+}
+
+model FiscalAttachment {
+  id            String   @id @default(cuid())
+  actionId      String
+  name          String
+  mimeType      String?
+  size          Int?
+  contentBase64 String?
+  createdAt     DateTime @default(now())
+
+  action        FiscalAction @relation(fields: [actionId], references: [id], onDelete: Cascade)
+}
+
+model FiscalHistory {
+  id        String   @id @default(cuid())
+  actionId  String?
+  companyId String
+  type      String
+  note      String
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  company   Company       @relation(fields: [companyId], references: [id])
+  action    FiscalAction? @relation(fields: [actionId], references: [id])
+  user      User?         @relation(fields: [createdBy], references: [id])
 }

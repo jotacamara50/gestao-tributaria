@@ -39,7 +39,7 @@ const data = {
       icon: LayoutDashboard,
     },
     {
-      title: "Importação",
+      title: "Importacao",
       url: "/importacao",
       icon: Upload,
     },
@@ -59,12 +59,17 @@ const data = {
       icon: Mail,
     },
     {
-      title: "Relatórios",
+      title: "Relatorios",
       url: "/relatorios",
       icon: FileSpreadsheet,
     },
     {
-      title: "Configurações",
+      title: "Fiscalizacao",
+      url: "/fiscalizacao",
+      icon: AlertTriangle,
+    },
+    {
+      title: "Configuracoes",
       url: "/configuracoes",
       icon: Settings,
     },
@@ -88,7 +93,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <PieChart className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">Gestão Tributária</span>
+                  <span className="truncate font-semibold">Gestao Tributaria</span>
                   <span className="truncate text-xs">Prefeitura Municipal</span>
                 </div>
               </a>
