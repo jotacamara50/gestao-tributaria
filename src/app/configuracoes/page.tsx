@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import Image from "next/image";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, User, FileText, Phone, Mail, MapPin, Upload, Save } from "lucide-react";
+import { Building2, FileText, Phone, Mail, MapPin, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Settings {
@@ -26,7 +26,6 @@ interface Settings {
 }
 
 export default function ConfiguracoesPage() {
-  const { data: session } = useSession();
   const { toast } = useToast();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,6 +34,7 @@ export default function ConfiguracoesPage() {
 
   useEffect(() => {
     loadSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadSettings = async () => {
@@ -236,9 +236,11 @@ export default function ConfiguracoesPage() {
                 <Label htmlFor="logo">Brasão da Prefeitura</Label>
                 <div className="flex items-center gap-4">
                   {settings.logoUrl && (
-                    <img
+                    <Image
                       src={settings.logoUrl}
-                      alt="Brasão"
+                      alt="Brasao"
+                      width={80}
+                      height={80}
                       className="h-20 w-20 object-contain border rounded"
                     />
                   )}

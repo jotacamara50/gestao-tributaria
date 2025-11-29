@@ -24,7 +24,7 @@ import {
     XCircle
 } from "lucide-react"
 import Link from "next/link"
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 interface CompanyData {
     id: string
@@ -87,8 +87,6 @@ interface CompanyData {
     }>
 }
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8']
-
 export default function ContribuinteDetailsPage() {
     const params = useParams()
     const router = useRouter()
@@ -97,6 +95,7 @@ export default function ContribuinteDetailsPage() {
 
     useEffect(() => {
         loadCompanyDetails()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [params.id])
 
     const loadCompanyDetails = async () => {

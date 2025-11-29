@@ -30,7 +30,7 @@ export default function LoginPage() {
                 password,
                 otp,
                 redirect: false
-            }) as any
+            }) as unknown as { ok?: boolean; error?: string }
 
             if (result?.error) {
                 if (result.error === "MFA_REQUIRED") {
@@ -51,7 +51,7 @@ export default function LoginPage() {
             } else {
                 setLoading(false)
             }
-        } catch (error) {
+        } catch {
             setError("Erro ao fazer login")
             setLoading(false)
         }

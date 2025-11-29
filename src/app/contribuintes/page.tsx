@@ -17,6 +17,12 @@ import { Search, Filter, Eye } from "lucide-react"
 import Link from "next/link"
 import { CreateCompanyDialog } from "@/components/contribuintes/create-company-dialog"
 
+interface Divergence {
+    id: string
+    status?: string
+    type?: string
+}
+
 interface Company {
     id: string
     cnpj: string
@@ -25,7 +31,7 @@ interface Company {
     regime: string
     status: string
     riskLevel: string
-    divergences: any[]
+    divergences: Divergence[]
 }
 
 export default function ContribuintesPage() {

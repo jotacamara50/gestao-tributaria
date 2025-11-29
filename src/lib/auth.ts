@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { auth } from "@/app/api/auth/[...nextauth]/route"
 import { redirect } from "next/navigation"
 

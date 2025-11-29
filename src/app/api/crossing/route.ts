@@ -1,6 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server'
 import { executarTodosCruzamentos, executarCruzamentoEmLote } from '@/lib/engine/crossing'
-import { prisma } from '@/lib/prisma'
 
 export async function POST(request: Request) {
     try {

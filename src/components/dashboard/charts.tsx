@@ -19,23 +19,27 @@ export function DashboardCharts() {
                 const resp = await fetch('/api/dashboard/stats')
                 if (resp.ok) {
                     const data = await resp.json()
-                    const chart = data.evolucaoOmissao?.map((item: any) => ({
-                        month: item.mes || '',
-                        declared: item.omissos || 0,
-                        real: item.taxa || 0
-                    })) || []
-                    setDivergencesByMonth(chart)
+                    const evolucao = Array.isArray(data.evolucaoOmissao)
+                        ? data.evolucaoOmissao.map((item: { mes?: string; taxa?: number; omissos?: number }) => ({
+                            month: item.mes || '',
+                            declared: item.omissos || 0,
+                            real: item.taxa || 0
+                        }))
+                        : []
+                    setDivergencesByMonth(evolucao)
 
-                    const risco = data.distribuicaoPorAnexo?.map((item: any) => ({
-                        name: item.regime || item.anexo || '',
-                        value: item.quantidade || 0,
-                        fill: "#0ea5e9"
-                    })) || []
+                    const risco = Array.isArray(data.distribuicaoPorAnexo)
+                        ? data.distribuicaoPorAnexo.map((item: { regime?: string; anexo?: string; quantidade?: number }) => ({
+                            name: item.regime || item.anexo || '',
+                            value: item.quantidade || 0,
+                            fill: "#0ea5e9"
+                        }))
+                        : []
                     setRiskDistribution(risco)
                 } else {
                     setError('Falha ao carregar gráficos')
                 }
-            } catch (err) {
+            } catch {
                 setError('Falha ao carregar gráficos')
             }
         }

@@ -22,7 +22,7 @@ async function main() {
     console.log('✅ Created admin user:', admin.email)
 
     // Create settings
-    const settings = await prisma.settings.upsert({
+    await prisma.settings.upsert({
         where: { id: 'default' },
         update: {},
         create: {

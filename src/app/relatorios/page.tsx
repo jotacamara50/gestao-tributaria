@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
@@ -8,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { FileSpreadsheet, Download, Filter, AlertTriangle } from "lucide-react"
+import { FileSpreadsheet, Filter, AlertTriangle } from "lucide-react"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 
@@ -52,10 +53,6 @@ type Settings = {
   address?: string | null
 }
 
-const meses = [
-  "01","02","03","04","05","06","07","08","09","10","11","12"
-]
-
 function todayPeriod() {
   const d = new Date()
   const mm = `${d.getMonth() + 1}`.padStart(2, "0")
@@ -64,7 +61,6 @@ function todayPeriod() {
 
 export default function RelatoriosPage() {
   const [periodo, setPeriodo] = useState(todayPeriod())
-  const [periodoFim, setPeriodoFim] = useState(todayPeriod())
   const [ano, setAno] = useState(new Date().getFullYear().toString())
   const [minDebito, setMinDebito] = useState("0")
   const [settings, setSettings] = useState<Settings>({})

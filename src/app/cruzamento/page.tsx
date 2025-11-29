@@ -12,13 +12,13 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
 import { useRouter } from "next/navigation"
 
 export default function CruzamentoPage() {
     const router = useRouter()
     const [running, setRunning] = useState(false)
-    const [result, setResult] = useState<any>(null)
+    type CrossingResult = { count?: number; message?: string }
+    const [result, setResult] = useState<CrossingResult | null>(null)
 
     const handleRunChecks = async () => {
         setRunning(true)

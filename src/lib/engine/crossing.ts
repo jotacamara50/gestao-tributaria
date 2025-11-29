@@ -500,7 +500,7 @@ export async function executarTodosCruzamentos(
     companyId: string,
     period: string
 ): Promise<ResultadoCruzamento> {
-    const [month, year] = period.split('/')
+    const [, year] = period.split('/')
     const anoAtual = parseInt(year)
 
     const resultado1 = await cruzamentoPgdasNfse(companyId, period)

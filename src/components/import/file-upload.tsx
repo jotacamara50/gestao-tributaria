@@ -11,7 +11,7 @@ export function FileUpload() {
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const [fileType, setFileType] = useState<string>("PGDAS")
     const [uploading, setUploading] = useState(false)
-    const [result, setResult] = useState<any>(null)
+    const [result, setResult] = useState<Record<string, unknown> | null>(null)
     const [error, setError] = useState<string | null>(null)
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,8 +68,9 @@ export function FileUpload() {
             setTimeout(() => {
                 router.refresh()
             }, 1500)
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Erro ao processar arquivo'
+            setError(message)
         } finally {
             setUploading(false)
         }

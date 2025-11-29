@@ -8,7 +8,7 @@ import {
 } from 'recharts'
 import { 
   TrendingUp, Users, AlertTriangle, DollarSign, 
-  FileWarning, CheckCircle 
+  FileWarning 
 } from "lucide-react"
 
 interface DashboardStats {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { parse } from 'csv-parse/sync'
 
 export interface DAF607Data {
@@ -26,7 +27,7 @@ export function parseDAF607(csvContent: string): DAF607Data[] {
                 cnpj: (record.CNPJ || record.cnpj || '').replace(/\D/g, '') || undefined,
             }))
         }
-    } catch (err) {
+    } catch {
         // continua para parser CNAB/posicional
     }
 

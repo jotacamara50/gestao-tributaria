@@ -68,8 +68,9 @@ export function CreateCompanyDialog() {
                 email: "",
             })
             router.refresh()
-        } catch (err: any) {
-            setError(err.message)
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Erro ao cadastrar'
+            setError(message)
         } finally {
             setLoading(false)
         }

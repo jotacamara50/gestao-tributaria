@@ -119,7 +119,7 @@ export default function DTEPage() {
 
     async function enviarDTE() {
         try {
-            const params: any = {
+            const params: { [key: string]: string | number } = {
                 prazo: novaForm.prazo,
             }
 
