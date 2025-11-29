@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import {
     Table,
     TableBody,
@@ -23,17 +23,18 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, MessageSquare, Upload } from "lucide-react"
+import { Plus, Eye, Upload } from "lucide-react"
 
 type Ticket = {
     id: string
+    protocol: string
     subject: string
     category: "Parada total" | "Comprometido" | "Duvidas/Relatorios"
     priority: "Alta" | "Media" | "Baixa"
     description: string
     requester: string
-    company: string
-    date: string
+    companyId?: string | null
+    company?: { id: string; name: string } | null
     openedAt: string
     status: "Aberto" | "Em Andamento" | "Resolvido"
     slaHours: number
@@ -42,10 +43,8 @@ type Ticket = {
 
 const initialTickets: Ticket[] = []
 
-function computeDue(slaHours: number) {
-    const opened = new Date()
-    const due = new Date(opened.getTime() + slaHours * 60 * 60 * 1000)
-    return { opened, due }
+function computeDue(opened: Date, slaHours: number) {
+    return new Date(opened.getTime() + slaHours * 60 * 60 * 1000)
 }
 
 function formatDuration(due: Date) {
@@ -61,23 +60,52 @@ function formatDuration(due: Date) {
 
 export default function SuportePage() {
     const [tickets, setTickets] = useState<Ticket[]>(initialTickets)
+    const [selected, setSelected] = useState<Ticket | null>(null)
     const { toast } = useToast()
     const [open, setOpen] = useState(false)
+    const [loading, setLoading] = useState(false)
     const [subject, setSubject] = useState("")
     const [category, setCategory] = useState<Ticket["category"]>("Parada total")
     const [priority, setPriority] = useState<Ticket["priority"]>("Alta")
     const [description, setDescription] = useState("")
     const [requester, setRequester] = useState("")
-    const [company, setCompany] = useState("Alfa Tecnologia LTDA")
+    const [company, setCompany] = useState<string>("")
     const [attachmentName, setAttachmentName] = useState<string | undefined>(undefined)
 
-    const nextId = useMemo(() => {
-        const seq = tickets.length + 1
-        const now = new Date()
-        const year = now.getFullYear()
-        const month = `${now.getMonth() + 1}`.padStart(2, "0")
-        return `SUP-${year}-${month}-${seq.toString().padStart(3, "0")}`
-    }, [tickets.length])
+    const [companies, setCompanies] = useState<{ id: string; name: string }[]>([])
+
+    useEffect(() => {
+        loadTickets()
+        loadCompanies()
+    }, [])
+
+    async function loadTickets() {
+        setLoading(true)
+        try {
+            const resp = await fetch("/api/support")
+            if (resp.ok) {
+                const data = await resp.json()
+                setTickets(data)
+            }
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    async function loadCompanies() {
+        try {
+            const resp = await fetch("/api/companies")
+            if (resp.ok) {
+                const data = await resp.json()
+                setCompanies(data)
+                if (!company && data.length) {
+                    setCompany(data[0].id)
+                }
+            }
+        } catch {
+            // ignore
+        }
+    }
 
     function slaHoursFor(categoryValue: Ticket["category"]) {
         if (categoryValue === "Parada total") return 4 // solucao 4h
@@ -85,36 +113,57 @@ export default function SuportePage() {
         return 24
     }
 
-    function addTicket() {
+    async function addTicket() {
         if (!subject || !requester || !description) return
         const slaHours = slaHoursFor(category)
-        const { opened, due } = computeDue(slaHours)
-        const newTicket: Ticket = {
-            id: nextId,
+        const payload = {
             subject,
             category,
             priority,
             description,
             requester,
-            company,
-            date: opened.toLocaleDateString("pt-BR"),
-            openedAt: opened.toISOString(),
-            status: "Aberto",
+            companyId: company || null,
             slaHours,
             attachmentName,
         }
-        setTickets([newTicket, ...tickets])
-        setSubject("")
-        setCategory("Parada total")
-        setPriority("Alta")
-        setDescription("")
-        setRequester("")
-        setCompany("Alfa Tecnologia LTDA")
-        setAttachmentName(undefined)
-        setOpen(false)
-        toast({
-            title: "Chamado criado",
-            description: `${newTicket.id} registrado com sucesso.`
+        const resp = await fetch("/api/support", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        })
+        if (resp.ok) {
+            const saved: Ticket = await resp.json()
+            setTickets([saved, ...tickets])
+            setSubject("")
+            setCategory("Parada total")
+            setPriority("Alta")
+            setDescription("")
+            setRequester("")
+            setAttachmentName(undefined)
+            setOpen(false)
+            toast({
+                title: "Chamado criado",
+                description: `${saved.protocol} registrado com sucesso.`
+            })
+        }
+    }
+
+    function openDetails(ticket: Ticket) {
+        setSelected(ticket)
+    }
+
+    function markResolved() {
+        if (!selected) return
+        fetch(`/api/support/${selected.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: "Resolvido" })
+        }).then(async (resp) => {
+            if (resp.ok) {
+                const updated = await resp.json()
+                setTickets((prev) => prev.map((t) => t.id === updated.id ? updated : t))
+            }
+            setSelected(null)
         })
     }
 
@@ -136,7 +185,7 @@ export default function SuportePage() {
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight">Suporte e Chamados</h2>
                     <p className="text-muted-foreground">
-                        Portal de abertura e acompanhamento por protocolo, conforme TR 4.4.
+                        Portal de abertura e acompanhamento por protocolo.
                     </p>
                 </div>
                 <Dialog open={open} onOpenChange={setOpen}>
@@ -188,8 +237,9 @@ export default function SuportePage() {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="Alfa Tecnologia LTDA">Alfa Tecnologia LTDA</SelectItem>
-                                            <SelectItem value="Beta Servicos Municipais">Beta Servicos Municipais</SelectItem>
+                                            {companies.map(c => (
+                                                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                                            ))}
                                         </SelectContent>
                                     </Select>
                                 </div>
@@ -210,19 +260,19 @@ export default function SuportePage() {
                             </div>
                             <div className="grid gap-1">
                                 <Label>Anexo (opcional)</Label>
-                                <Input
-                                    type="file"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0]
-                                        setAttachmentName(file ? file.name : undefined)
-                                    }}
-                                />
-                                {attachmentName && <span className="text-xs text-muted-foreground flex items-center gap-1"><Upload className="h-3 w-3" /> {attachmentName}</span>}
-                            </div>
+                            <Input
+                                type="file"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0]
+                                    setAttachmentName(file ? file.name : undefined)
+                                }}
+                            />
+                            {attachmentName && <span className="text-xs text-muted-foreground flex items-center gap-1"><Upload className="h-3 w-3" /> {attachmentName}</span>}
                         </div>
-                        <DialogFooter className="mt-2">
+                    </div>
+                    <DialogFooter className="mt-2">
                             <div className="text-xs text-muted-foreground mr-auto">
-                                Protocolo gerado: {nextId}
+                                Protocolo gerado no envio
                             </div>
                             <Button onClick={addTicket} disabled={!subject || !requester || !description}>
                                 Registrar chamado
@@ -245,30 +295,30 @@ export default function SuportePage() {
                             <TableHead>Prioridade</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead>SLA</TableHead>
-                            <TableHead className="text-right">Acoes</TableHead>
+                            <TableHead className="text-right">Detalhes</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {tickets.map((ticket) => {
                             const opened = new Date(ticket.openedAt)
-                            const due = new Date(opened.getTime() + ticket.slaHours * 60 * 60 * 1000)
+                            const due = computeDue(opened, ticket.slaHours)
                             const slaInfo = formatDuration(due)
                             return (
-                                <TableRow key={ticket.id}>
-                                    <TableCell className="font-mono">{ticket.id}</TableCell>
+                                <TableRow key={ticket.id} className="cursor-pointer" onClick={() => openDetails(ticket)}>
+                                    <TableCell className="font-mono">{ticket.protocol}</TableCell>
                                     <TableCell>{ticket.subject}</TableCell>
                                     <TableCell>{ticket.category}</TableCell>
                                     <TableCell>{ticket.requester}</TableCell>
-                                    <TableCell>{ticket.company}</TableCell>
-                                    <TableCell>{ticket.date}</TableCell>
+                                    <TableCell>{ticket.company?.name || "-"}</TableCell>
+                                    <TableCell>{opened.toLocaleDateString("pt-BR")}</TableCell>
                                     <TableCell>{priorityColor(ticket.priority)}</TableCell>
                                     <TableCell>{badgeForStatus(ticket.status)}</TableCell>
                                     <TableCell>
                                         <Badge variant={slaInfo.variant}>{slaInfo.label}</Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <Button variant="ghost" size="sm">
-                                            <MessageSquare className="h-4 w-4" />
+                                        <Button variant="ghost" size="sm" title="Ver andamento do chamado" onClick={(e) => { e.stopPropagation(); openDetails(ticket) }}>
+                                            <Eye className="h-4 w-4" />
                                         </Button>
                                     </TableCell>
                                 </TableRow>
@@ -282,6 +332,66 @@ export default function SuportePage() {
                     </TableBody>
                 </Table>
             </div>
+
+            {selected && (
+                <Dialog open={!!selected} onOpenChange={(val) => !val && setSelected(null)}>
+                    <DialogContent className="sm:max-w-xl">
+                        <DialogHeader>
+                            <DialogTitle>Detalhes do chamado</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                                <span className="font-semibold">Protocolo</span>
+                                <span className="font-mono">{selected.protocol}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Assunto</span>
+                                <span>{selected.subject}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Natureza</span>
+                                <span>{selected.category}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Prioridade</span>
+                                <span>{selected.priority}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Solicitante</span>
+                                <span>{selected.requester}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Empresa</span>
+                                <span>{selected.company?.name || "-"}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Status</span>
+                                <span>{selected.status}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span>Abertura</span>
+                                <span>{new Date(selected.openedAt).toLocaleDateString("pt-BR")}</span>
+                            </div>
+                            <div className="space-y-1">
+                                <span className="font-semibold">Descricao</span>
+                                <p className="text-muted-foreground whitespace-pre-line">{selected.description}</p>
+                            </div>
+                            {selected.attachmentName && (
+                                <div className="flex justify-between">
+                                    <span>Anexo</span>
+                                    <span>{selected.attachmentName}</span>
+                                </div>
+                            )}
+                        </div>
+                        <DialogFooter className="justify-between">
+                            <Button variant="secondary" onClick={() => setSelected(null)}>Fechar</Button>
+                            {selected.status !== "Resolvido" && (
+                                <Button onClick={markResolved}>Marcar como resolvido</Button>
+                            )}
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
         </div>
     )
 }

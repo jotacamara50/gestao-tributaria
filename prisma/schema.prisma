@@ -30,6 +30,7 @@ model Company {
   dteMessages           DTEMessage[]
   fiscalActions         FiscalAction[]
   fiscalHistory         FiscalHistory[]
+  supportTickets        SupportTicket[]
 }
 
 model Invoice {
@@ -178,6 +179,7 @@ model User {
   dteMessages DTEMessage[]
   fiscalActions FiscalAction[]
   fiscalHistory FiscalHistory[]
+  supportTickets SupportTicket[]
 }
 
 model FiscalAction {
@@ -222,4 +224,24 @@ model FiscalHistory {
   company   Company       @relation(fields: [companyId], references: [id])
   action    FiscalAction? @relation(fields: [actionId], references: [id])
   user      User?         @relation(fields: [createdBy], references: [id])
+}
+
+model SupportTicket {
+  id             String   @id @default(cuid())
+  protocol       String   @unique
+  subject        String
+  category       String   // Parada total, Comprometido, Duvidas/Relatorios
+  priority       String   // Alta, Media, Baixa
+  description    String
+  requester      String
+  status         String   @default("Aberto")
+  slaHours       Int
+  openedAt       DateTime @default(now())
+  closedAt       DateTime?
+  attachmentName String?
+  companyId      String?
+  createdBy      String?
+
+  company        Company? @relation(fields: [companyId], references: [id])
+  user           User?    @relation(fields: [createdBy], references: [id])
 }
