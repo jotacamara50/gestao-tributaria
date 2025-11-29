@@ -1,3 +1,5 @@
+"use client"
+
 import {
     Table,
     TableBody,
@@ -8,43 +10,46 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { FileText, CheckCircle, XCircle, Clock } from "lucide-react"
+import { useEffect, useState } from "react"
 
-const historyData = [
-    {
-        id: 1,
-        filename: "PGDAS-D_2025-10.xml",
-        type: "PGDAS-D",
-        date: "28/11/2025 10:30",
-        status: "success",
-        records: 1240,
-    },
-    {
-        id: 2,
-        filename: "NFS-e_Lote_4592.xml",
-        type: "NFS-e",
-        date: "28/11/2025 09:15",
-        status: "processing",
-        records: 0,
-    },
-    {
-        id: 3,
-        filename: "DAF607_Repasse_BB.csv",
-        type: "DAF607",
-        date: "27/11/2025 16:45",
-        status: "error",
-        records: 0,
-    },
-    {
-        id: 4,
-        filename: "Base_CNPJ_Receita.csv",
-        type: "Cadastral",
-        date: "25/11/2025 08:00",
-        status: "success",
-        records: 15400,
-    },
-]
+type ImportItem = {
+    id: string
+    filename: string
+    type: string
+    date: string
+    status: 'success' | 'error' | 'processing'
+    records: number
+}
 
 export function ImportHistory() {
+    const [historyData, setHistoryData] = useState<ImportItem[]>([])
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        async function loadHistory() {
+            try {
+                const resp = await fetch('/api/import-history')
+                if (resp.ok) {
+                    const data = await resp.json()
+                    const mapped: ImportItem[] = data.map((item: any) => ({
+                        id: item.id,
+                        filename: item.filename,
+                        type: item.type,
+                        date: new Date(item.date).toLocaleString('pt-BR'),
+                        status: item.status || 'success',
+                        records: item.records || 0
+                    }))
+                    setHistoryData(mapped)
+                }
+            } catch (err) {
+                console.error('Erro ao carregar histórico de importação', err)
+            } finally {
+                setLoading(false)
+            }
+        }
+        loadHistory()
+    }, [])
+
     return (
         <div className="rounded-md border">
             <Table>
@@ -88,6 +93,13 @@ export function ImportHistory() {
                             </TableCell>
                         </TableRow>
                     ))}
+                    {(!historyData.length && !loading) && (
+                        <TableRow>
+                            <TableCell colSpan={5} className="text-center text-muted-foreground py-6">
+                                Nenhum histórico de importação.
+                            </TableCell>
+                        </TableRow>
+                    )}
                 </TableBody>
             </Table>
         </div>

@@ -2,12 +2,8 @@
 <DeclaracaoPGDAS>
   <Cabecalho>
     <CNPJ>12345678000199</CNPJ>
-    <PA>202411</PA>
+    <PeriodoApuracao>11/2024</PeriodoApuracao> 
   </Cabecalho>
-  <DadosBasicos>
-    <CNPJ>12345678000199</CNPJ>
-    <PeriodoApuracao>202411</PeriodoApuracao>
-  </DadosBasicos>
   <DadosApuracao>
     <ReceitaBrutaMensal>45000.00</ReceitaBrutaMensal>
     <ReceitaBruta12Meses>520000.00</ReceitaBruta12Meses>

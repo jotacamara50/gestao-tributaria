@@ -4,6 +4,25 @@ import { parsePGDAS, parseNFSe } from '@/lib/parsers/xml-parser'
 import { parseDAF607 } from '@/lib/parsers/csv-parser'
 import { logAction } from '@/lib/audit'
 
+function formatCNPJ(cnpj: string) {
+    const digits = cnpj.replace(/\D/g, '')
+    if (digits.length !== 14) return cnpj
+    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`
+}
+
+async function findCompanyByCnpj(raw: string) {
+    const clean = raw.replace(/\D/g, '')
+    const formatted = formatCNPJ(clean)
+    return prisma.company.findFirst({
+        where: {
+            OR: [
+                { cnpj: clean },
+                { cnpj: formatted }
+            ]
+        }
+    })
+}
+
 export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData()
@@ -20,9 +39,7 @@ export async function POST(request: NextRequest) {
         switch (fileType) {
             case 'PGDAS':
                 const pgdasData = await parsePGDAS(content)
-                const company = await prisma.company.findUnique({
-                    where: { cnpj: pgdasData.cnpj }
-                })
+                const company = await findCompanyByCnpj(pgdasData.cnpj)
 
                 if (company) {
                     const declaration = await prisma.declaration.create({
@@ -43,9 +60,7 @@ export async function POST(request: NextRequest) {
 
             case 'NFSE':
                 const nfseData = await parseNFSe(content)
-                const prestador = await prisma.company.findUnique({
-                    where: { cnpj: nfseData.prestadorCnpj }
-                })
+                const prestador = await findCompanyByCnpj(nfseData.prestadorCnpj)
 
                 if (prestador) {
                     const invoice = await prisma.invoice.create({

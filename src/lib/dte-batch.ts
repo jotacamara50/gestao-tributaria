@@ -21,6 +21,18 @@ function pad(value: string, size: number, filler = ' ') {
     return value + filler.repeat(size - value.length)
 }
 
+const LINE_SIZE = 100
+
+function buildHeader(date: Date, total: number) {
+    const base = `HDRDTE${format(date, 'yyyyMMdd')}${pad(total.toString(), 5, '0')}`
+    return pad(base, LINE_SIZE, ' ')
+}
+
+function buildTrailer(total: number) {
+    const base = `TRL${pad(total.toString(), 5, '0')}`
+    return pad(base, LINE_SIZE, ' ')
+}
+
 export class DTELayoutGenerator {
     static buildRegistro(message: DTEMessageRecord) {
         // Layout posicional: tipo(3) + cnpj(14) + data(8 AAAAMMDD) + codMsg(4)
@@ -28,7 +40,8 @@ export class DTELayoutGenerator {
         const cnpj = pad(message.cnpj.replace(/\D/g, ''), 14, '0')
         const data = format(message.sentAt, 'yyyyMMdd')
         const cod = pad(message.codigo, 4, '0')
-        return `${tipo}${cnpj}${data}${cod}`
+        const base = `${tipo}${cnpj}${data}${cod}`
+        return pad(base, LINE_SIZE, ' ')
     }
 }
 
@@ -88,8 +101,8 @@ export async function generateDTEBatch(options: DTEBatchOptions = {}): Promise<B
     })
 
     // Header e trailer posicionais (sem pipes)
-    const header = `HDR${format(generatedAt, 'yyyyMMdd')}${pad(messages.length.toString(), 5, '0')}`
-    const trailer = `TRL${pad(messages.length.toString(), 5, '0')}`
+    const header = buildHeader(generatedAt, messages.length)
+    const trailer = buildTrailer(messages.length)
 
     let content = ''
     if (formatType === 'xml') {
