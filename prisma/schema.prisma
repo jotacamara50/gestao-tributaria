@@ -173,6 +173,13 @@ model User {
   role        String       @default("AUDITOR")
   mfaEnabled  Boolean      @default(false)
   mfaSecret   String?
+  cpf         String       @unique
+  matricula   String?
+  cargo       String?
+  localTrabalho String?
+  phone       String?
+  profiles    String?
+  active      Boolean      @default(true)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   logs        AuditLog[]

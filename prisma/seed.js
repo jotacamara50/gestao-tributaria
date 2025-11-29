@@ -14,7 +14,14 @@ async function main() {
             email: 'admin@prefeitura.gov.br',
             name: 'Administrador',
             password: hashedPassword,
-            role: 'ADMIN'
+            role: 'ADMIN',
+            cpf: '00000000000',
+            matricula: 'ADM-001',
+            cargo: 'Administrador do Sistema',
+            localTrabalho: 'Aurora/SP',
+            phone: '11900000000',
+            profiles: 'ADMIN',
+            active: true
         }
     })
     console.log('Admin user:', admin.email)
