@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CompNfse>
+  <Nfse>
+    <InfNfse>
+      <Numero>1001</Numero>
+      <CodigoVerificacao>ABC123</CodigoVerificacao>
+      <DataEmissao>2024-10-05</DataEmissao>
+      <Competencia>2024-10-01</Competencia>
+      <NaturezaOperacao>1</NaturezaOperacao>
+      <OptanteSimplesNacional>1</OptanteSimplesNacional>
+      <PrestadorServico>
+        <IdentificacaoPrestador>
+          <Cnpj>12345678000190</Cnpj>
+        </IdentificacaoPrestador>
+        <RazaoSocial>Alfa Tecnologia LTDA</RazaoSocial>
+      </PrestadorServico>
+      <TomadorServico>
+        <IdentificacaoTomador>
+          <CpfCnpj>
+            <Cnpj>11122233000199</Cnpj>
+          </CpfCnpj>
+        </IdentificacaoTomador>
+        <RazaoSocial>Cliente Publico A</RazaoSocial>
+      </TomadorServico>
+      <Servico>
+        <Valores>
+          <ValorServicos>60000.00</ValorServicos>
+          <ValorDeducoes>0.00</ValorDeducoes>
+          <ValorIss>1800.00</ValorIss>
+          <Aliquota>0.0300</Aliquota>
+          <BaseCalculo>60000.00</BaseCalculo>
+          <IssRetido>1</IssRetido>
+        </Valores>
+        <ItemListaServico>1401</ItemListaServico>
+        <CodigoMunicipio>3550308</CodigoMunicipio>
+        <Discriminacao>Servico de software</Discriminacao>
+      </Servico>
+    </InfNfse>
+  </Nfse>
+</CompNfse>

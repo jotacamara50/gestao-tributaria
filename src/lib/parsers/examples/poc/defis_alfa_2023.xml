@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Defis>
+  <Identificacao>
+    <CNPJ>12345678000190</CNPJ>
+    <AnoCalendario>2023</AnoCalendario>
+    <Anexo>III</Anexo>
+  </Identificacao>
+  <Receitas>
+    <ReceitaBrutaTotal>1150000.00</ReceitaBrutaTotal>
+    <Exportacao>0.00</Exportacao>
+    <Servicos>1150000.00</Servicos>
+  </Receitas>
+  <Despesas>
+    <FolhaSalarios>180000.00</FolhaSalarios>
+    <Investimentos>25000.00</Investimentos>
+    <Total>350000.00</Total>
+  </Despesas>
+</Defis>

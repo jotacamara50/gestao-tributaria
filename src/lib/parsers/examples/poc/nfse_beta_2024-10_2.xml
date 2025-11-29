@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CompNfse>
+  <Nfse>
+    <InfNfse>
+      <Numero>2002</Numero>
+      <CodigoVerificacao>MNO222</CodigoVerificacao>
+      <DataEmissao>2024-10-18</DataEmissao>
+      <Competencia>2024-10-01</Competencia>
+      <NaturezaOperacao>1</NaturezaOperacao>
+      <OptanteSimplesNacional>1</OptanteSimplesNacional>
+      <PrestadorServico>
+        <IdentificacaoPrestador>
+          <Cnpj>98765432000110</Cnpj>
+        </IdentificacaoPrestador>
+        <RazaoSocial>Beta Servicos Municipais</RazaoSocial>
+      </PrestadorServico>
+      <TomadorServico>
+        <IdentificacaoTomador>
+          <CpfCnpj>
+            <Cnpj>55566677000144</Cnpj>
+          </CpfCnpj>
+        </IdentificacaoTomador>
+        <RazaoSocial>Cliente E</RazaoSocial>
+      </TomadorServico>
+      <Servico>
+        <Valores>
+          <ValorServicos>29000.00</ValorServicos>
+          <ValorDeducoes>0.00</ValorDeducoes>
+          <ValorIss>580.00</ValorIss>
+          <Aliquota>0.0200</Aliquota>
+          <BaseCalculo>29000.00</BaseCalculo>
+          <IssRetido>1</IssRetido>
+        </Valores>
+        <ItemListaServico>0701</ItemListaServico>
+        <CodigoMunicipio>3550308</CodigoMunicipio>
+        <Discriminacao>Consultoria contabile</Discriminacao>
+      </Servico>
+    </InfNfse>
+  </Nfse>
+</CompNfse>

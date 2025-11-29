@@ -4,9 +4,8 @@ import bcrypt from 'bcryptjs'
 const prisma = new PrismaClient()
 
 async function main() {
-    console.log('🌱 Seeding database...')
+    console.log('Seeding database...')
 
-    // Create admin user
     const hashedPassword = await bcrypt.hash('admin123', 10)
     const admin = await prisma.user.upsert({
         where: { email: 'admin@prefeitura.gov.br' },
@@ -15,141 +14,96 @@ async function main() {
             email: 'admin@prefeitura.gov.br',
             name: 'Administrador',
             password: hashedPassword,
-            role: 'ADMIN',
-        },
+            role: 'ADMIN'
+        }
     })
+    console.log('Admin user:', admin.email)
 
-    console.log('✅ Created admin user:', admin.email)
-
-    // Create settings
     await prisma.settings.upsert({
         where: { id: 'default' },
         update: {},
         create: {
             id: 'default',
-            cityName: 'Município Exemplo',
-            secretaryName: 'Secretário de Fazenda',
-            lawsText: 'Lei Municipal nº 1234/2024',
-        },
+            cityName: 'Aurora',
+            stateName: 'SP',
+            secretaryName: 'Secretario de Fazenda',
+            lawsText: 'Lei Municipal 1234/2024',
+            address: 'Praca Central, 100 - Aurora/SP',
+            logoUrl: null
+        }
     })
+    console.log('Settings created')
 
-    console.log('✅ Created settings')
-
-    // Seed companies from existing mock data
     const companies = [
         {
             cnpj: '12.345.678/0001-90',
-            name: 'Padaria do João Ltda',
-            tradeName: 'Padaria do João',
-            cnae: '47.21-1-02',
+            name: 'Alfa Tecnologia LTDA',
+            tradeName: 'Alfa Tech',
+            cnae: '6201500',
             regime: 'Simples Nacional',
             status: 'Ativo',
-            riskLevel: 'Baixo',
+            riskLevel: 'Baixo'
         },
         {
             cnpj: '98.765.432/0001-10',
-            name: 'Tech Solutions Informática',
-            tradeName: 'Tech Solutions',
-            cnae: '62.01-5-01',
+            name: 'Beta Servicos Municipais',
+            tradeName: 'Beta Servicos',
+            cnae: '6920601',
             regime: 'Simples Nacional',
             status: 'Ativo',
-            riskLevel: 'Alto',
-        },
-        {
-            cnpj: '45.678.901/0001-23',
-            name: 'Construtora Silva',
-            tradeName: 'Silva Construções',
-            cnae: '41.20-4-00',
-            regime: 'Lucro Presumido',
-            status: 'Bloqueado',
-            riskLevel: 'Médio',
-        },
-        {
-            cnpj: '11.222.333/0001-44',
-            name: 'Mercadinho da Esquina',
-            tradeName: 'Mercadinho',
-            cnae: '47.12-1-00',
-            regime: 'Simples Nacional',
-            status: 'Ativo',
-            riskLevel: 'Baixo',
-        },
-        {
-            cnpj: '55.666.777/0001-88',
-            name: 'Consultoria Financeira Alpha',
-            tradeName: 'Alpha Consultoria',
-            cnae: '66.19-3-02',
-            regime: 'Simples Nacional',
-            status: 'Ativo',
-            riskLevel: 'Alto',
-        },
+            riskLevel: 'Baixo'
+        }
     ]
 
     for (const company of companies) {
         await prisma.company.upsert({
             where: { cnpj: company.cnpj },
             update: {},
-            create: company,
+            create: company
         })
     }
+    console.log(`Companies created: ${companies.length}`)
 
-    console.log(`✅ Created ${companies.length} companies`)
-
-    // Create some sample declarations
-    const techCompany = await prisma.company.findUnique({
-        where: { cnpj: '98.765.432/0001-10' },
+    await prisma.iSSRate.createMany({
+        data: [
+            { cnae: '6201500', description: 'Desenvolvimento de software', rate: 0.05 },
+            { cnae: '6920601', description: 'Consultoria contabilidade', rate: 0.02 }
+        ],
+        skipDuplicates: true
     })
 
-    if (techCompany) {
-        await prisma.declaration.create({
-            data: {
-                companyId: techCompany.id,
-                period: '10/2025',
-                type: 'PGDAS',
-                revenue: 12000,
-                taxDue: 1200,
-            },
-        })
+    const alfa = await prisma.company.findUnique({ where: { cnpj: '12.345.678/0001-90' } })
+    const beta = await prisma.company.findUnique({ where: { cnpj: '98.765.432/0001-10' } })
 
-        // Create invoices that don't match
-        await prisma.invoice.createMany({
-            data: [
-                {
-                    companyId: techCompany.id,
-                    number: '001',
-                    issueDate: new Date('2025-10-05'),
-                    value: 15000,
-                    serviceCode: '01.01',
-                },
-                {
-                    companyId: techCompany.id,
-                    number: '002',
-                    issueDate: new Date('2025-10-15'),
-                    value: 20000,
-                    serviceCode: '01.01',
-                },
-            ],
+    const histories = []
+    if (alfa) {
+        histories.push({
+            companyId: alfa.id,
+            regime: 'Simples Nacional',
+            startDate: new Date('2021-01-01'),
+            endDate: null,
+            reason: 'Entrada no SN'
         })
-
-        // Create divergence
-        await prisma.divergence.create({
-            data: {
-                companyId: techCompany.id,
-                type: 'Omissão de Receita',
-                description: 'NFS-e emitidas somam R$ 35.000, mas PGDAS declara R$ 12.000',
-                value: 23000,
-                status: 'Pendente',
-            },
+    }
+    if (beta) {
+        histories.push({
+            companyId: beta.id,
+            regime: 'Simples Nacional',
+            startDate: new Date('2020-01-01'),
+            endDate: null,
+            reason: 'Entrada no SN'
         })
-
-        console.log('✅ Created sample data for Tech Solutions')
+    }
+    if (histories.length) {
+        await prisma.enquadramentoHistory.createMany({ data: histories })
     }
 
-    console.log('🎉 Seeding complete!')
+    console.log('Seed complete.')
 }
 
 main()
     .catch((e) => {
-        console.error('❌ Seeding failed:', e)
+        console.error('Seeding failed:', e)
         process.exit(1)
     })
     .finally(async () => {

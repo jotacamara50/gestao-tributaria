@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DeclaracaoPGDAS>
+  <Cabecalho>
+    <CNPJ>12345678000190</CNPJ>
+    <PeriodoApuracao>10/2024</PeriodoApuracao>
+  </Cabecalho>
+  <DadosApuracao>
+    <ReceitaBrutaMensal>120000.00</ReceitaBrutaMensal>
+    <ReceitaBruta12Meses>950000.00</ReceitaBruta12Meses>
+    <BaseCalculo>120000.00</BaseCalculo>
+    <AliquotaEfetiva>0.0300</AliquotaEfetiva>
+    <ValorDevido>3600.00</ValorDevido>
+    <ValorDAS>3600.00</ValorDAS>
+    <ISSRetido>0.00</ISSRetido>
+  </DadosApuracao>
+</DeclaracaoPGDAS>
