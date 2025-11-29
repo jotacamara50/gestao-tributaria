@@ -32,6 +32,39 @@ export interface ResultadoCruzamento {
     score: number // 0-100, quanto menor pior
 }
 
+function periodoRange(period: string) {
+    const [month, year] = period.split('/')
+    const startDate = new Date(parseInt(year), parseInt(month) - 1, 1)
+    const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59, 999)
+    return { startDate, endDate }
+}
+
+function calcularScore(divergencias: DivergenciaDetalhada[]) {
+    // Peso baseado em gravidade + valor
+    const gravidadePeso: Record<DivergenciaDetalhada['gravidade'], number> = {
+        BAIXA: 5,
+        MEDIA: 12,
+        ALTA: 20,
+        CRITICA: 35
+    }
+
+    const valorPeso = (valor: number) => {
+        if (valor > 100000) return 15
+        if (valor > 50000) return 10
+        if (valor > 10000) return 7
+        if (valor > 1000) return 4
+        return 2
+    }
+
+    let score = 100
+    for (const div of divergencias) {
+        score -= gravidadePeso[div.gravidade]
+        score -= valorPeso(div.valor)
+    }
+
+    return Math.max(0, score)
+}
+
 function parseAliquotaFromXml(xml?: string | null): number | null {
     if (!xml) return null
     const match = xml.match(/aliquota[^0-9]*([0-9]+[.,]?[0-9]*)/i) || xml.match(/<Aliquota[^>]*>([0-9.,]+)<\/Aliquota>/i)
@@ -66,7 +99,7 @@ function parseMunicipioFromXml(xml?: string | null): string | null {
 /**
  * 1. CRUZAMENTO PGDAS vs NFSe
  * Compara receita declarada no PGDAS com soma de NFSe emitidas
- * Inclui detecção de retificação a menor e de divergência de município
+ * Inclui deteccao de retificacao a menor e de divergencia de municipio
  */
 export async function cruzamentoPgdasNfse(
     companyId: string, 
@@ -81,6 +114,8 @@ export async function cruzamentoPgdasNfse(
     if (!company) {
         throw new Error('Empresa nao encontrada')
     }
+
+    const { startDate, endDate } = periodoRange(period)
 
     // Buscar todas as declaracoes PGDAS do periodo (para detectar retificacao)
     const declarations = await prisma.declaration.findMany({
@@ -101,6 +136,8 @@ export async function cruzamentoPgdasNfse(
     }
 
     const declaration = declarations[declarations.length - 1]
+    const receitaDeclarada = declaration.revenue
+    const impostoDeclarado = declaration.taxDue
 
     // Detecao de retificacao a menor
     if (declarations.length > 1) {
@@ -124,11 +161,6 @@ export async function cruzamentoPgdasNfse(
         }
     }
 
-    // Calcular periodo
-    const [month, year] = period.split('/')
-    const startDate = new Date(parseInt(year), parseInt(month) - 1, 1)
-    const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59)
-
     // Buscar NFSe do periodo
     const invoices = await prisma.invoice.findMany({
         where: {
@@ -138,14 +170,12 @@ export async function cruzamentoPgdasNfse(
     })
 
     const totalNFSeEmitidas = invoices.reduce((sum, inv) => sum + inv.value, 0)
-    const totalDeclaradoPGDAS = declaration.revenue
+    const diferencaReceita = totalNFSeEmitidas - receitaDeclarada
 
     // Tolerancia de 2% para arredondamentos
-    const tolerancia = totalDeclaradoPGDAS * 0.02
-    const diferenca = Math.abs(totalNFSeEmitidas - totalDeclaradoPGDAS)
-
-    if (diferenca > tolerancia) {
-        const percentual = totalDeclaradoPGDAS > 0 ? (diferenca / totalDeclaradoPGDAS) * 100 : 0
+    const tolerancia = Math.max(100, receitaDeclarada * 0.02)
+    if (Math.abs(diferencaReceita) > tolerancia) {
+        const percentual = receitaDeclarada > 0 ? (Math.abs(diferencaReceita) / receitaDeclarada) * 100 : 0
         let gravidade: 'BAIXA' | 'MEDIA' | 'ALTA' | 'CRITICA' = 'MEDIA'
 
         if (percentual > 50) gravidade = 'CRITICA'
@@ -153,16 +183,16 @@ export async function cruzamentoPgdasNfse(
         else if (percentual > 5) gravidade = 'MEDIA'
         else gravidade = 'BAIXA'
 
-        const descricao = totalNFSeEmitidas > totalDeclaradoPGDAS
-            ? `Receita de NFSe (R$ ${totalNFSeEmitidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) superior a receita declarada no PGDAS (R$ ${totalDeclaradoPGDAS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Possivel omissao de receita.`
-            : `Receita declarada no PGDAS (R$ ${totalDeclaradoPGDAS.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) superior as NFSe emitidas (R$ ${totalNFSeEmitidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Verificar outras fontes de receita ou inconsistencias.`
+        const descricao = diferencaReceita > 0
+            ? `Receita de NFSe (R$ ${totalNFSeEmitidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) superior a receita declarada no PGDAS (R$ ${receitaDeclarada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Possivel omissao de receita.`
+            : `Receita declarada no PGDAS (R$ ${receitaDeclarada.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) superior as NFSe emitidas (R$ ${totalNFSeEmitidas.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}). Verificar outras fontes de receita ou inconsistencias.`
 
         divergencias.push({
             tipo: 'OMISSAO_RECEITA',
             descricao,
-            valor: diferenca,
+            valor: Math.abs(diferencaReceita),
             valorEsperado: totalNFSeEmitidas,
-            valorDeclarado: totalDeclaradoPGDAS,
+            valorDeclarado: receitaDeclarada,
             percentualDivergencia: percentual,
             gravidade,
             fundamentoLegal: 'LC 123/2006, Art. 18',
@@ -194,6 +224,39 @@ export async function cruzamentoPgdasNfse(
         }
     }
 
+    // Pagamentos via DAF607 (repasses)
+    const repassesPeriodo = await prisma.repasse.findMany({
+        where: {
+            date: { gte: startDate, lte: endDate }
+        }
+    })
+
+    const cnpjDigits = company.cnpj.replace(/\D/g, '')
+    const repassesEmpresa = repassesPeriodo.filter(r => {
+        const descDigits = (r.description || '').replace(/\D/g, '')
+        const origDigits = (r.origin || '').replace(/\D/g, '')
+        return descDigits.includes(cnpjDigits) || origDigits.includes(cnpjDigits)
+    })
+
+    const totalRepasses = repassesEmpresa.reduce((sum, rep) => sum + rep.amount, 0)
+    const diferencaPagamento = impostoDeclarado - totalRepasses
+    const toleranciaPagamento = Math.max(50, impostoDeclarado * 0.05)
+
+    if (impostoDeclarado > 0 && diferencaPagamento > toleranciaPagamento) {
+        const percentual = (diferencaPagamento / impostoDeclarado) * 100
+        divergencias.push({
+            tipo: 'INADIMPLENTE',
+            descricao: `PGDAS declara R$ ${impostoDeclarado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} de ISS devido, mas os repasses DAF607 identificados pelo CNPJ somam R$ ${totalRepasses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. Diferenca de ${percentual.toFixed(2)}% acima da tolerancia.`,
+            valor: diferencaPagamento,
+            valorEsperado: impostoDeclarado,
+            valorDeclarado: totalRepasses,
+            percentualDivergencia: percentual,
+            gravidade: percentual > 50 ? 'CRITICA' : percentual > 20 ? 'ALTA' : 'MEDIA',
+            fundamentoLegal: 'CTN Art. 139 / cobranca administrativa',
+            periodo: period
+        })
+    }
+
     return {
         companyId,
         cnpj: company.cnpj,
@@ -201,7 +264,7 @@ export async function cruzamentoPgdasNfse(
         divergencias,
         totalDivergencias: divergencias.length,
         valorTotalDivergente: divergencias.reduce((sum, d) => sum + d.valor, 0),
-        score: divergencias.length === 0 ? 100 : Math.max(0, 100 - (divergencias.length * 20))
+        score: divergencias.length === 0 ? 100 : calcularScore(divergencias)
     }
 }
 
@@ -281,7 +344,7 @@ export async function verificarSublimites(
         divergencias,
         totalDivergencias: divergencias.length,
         valorTotalDivergente: divergencias.reduce((sum, d) => sum + d.valor, 0),
-        score: divergencias.length === 0 ? 100 : Math.max(0, 100 - (divergencias.length * 30))
+        score: divergencias.length === 0 ? 100 : calcularScore(divergencias)
     }
 }
 
@@ -374,7 +437,7 @@ export async function validarRetencoes(
     if (retidoDeclarado > 0 && diferencaValor > tolerancia) {
         divergencias.push({
             tipo: 'RETENCAO_INVALIDA',
-            descricao: `Soma das notas com ISS retido aponta R$ ${valorRetencaoEsperado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, enquanto o declarado foi R$ ${retidoDeclarado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. Diferença acima da tolerancia.`,
+            descricao: `Soma das notas com ISS retido aponta R$ ${valorRetencaoEsperado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}, enquanto o declarado foi R$ ${retidoDeclarado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}. Diferenca acima da tolerancia.`,
             valor: diferencaValor,
             valorEsperado: valorRetencaoEsperado,
             valorDeclarado: retidoDeclarado,
@@ -392,7 +455,7 @@ export async function validarRetencoes(
         divergencias,
         totalDivergencias: divergencias.length,
         valorTotalDivergente: divergencias.reduce((sum, d) => sum + d.valor, 0),
-        score: divergencias.length === 0 ? 100 : Math.max(0, 100 - (divergencias.length * 25))
+        score: divergencias.length === 0 ? 100 : calcularScore(divergencias)
     }
 }
 
@@ -451,9 +514,7 @@ export async function detectarInadimplentes(period: string): Promise<ResultadoCr
         }
     })
 
-    const [month, year] = period.split('/')
-    const startDate = new Date(parseInt(year), parseInt(month) - 1, 1)
-    const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59)
+    const { startDate, endDate } = periodoRange(period)
 
     const repasses = await prisma.repasse.findMany({
         where: {
@@ -462,30 +523,38 @@ export async function detectarInadimplentes(period: string): Promise<ResultadoCr
     })
 
     for (const declaracao of declaracoes) {
-        const repasseEncontrado = repasses.find(r => 
-            r.description?.includes(declaracao.company.cnpj) ||
-            r.origin?.includes(declaracao.company.cnpj)
-        )
+        const cnpjDigits = declaracao.company.cnpj.replace(/\D/g, '')
+        const repassesEmpresa = repasses.filter(r => {
+            const descDigits = (r.description || '').replace(/\D/g, '')
+            const origDigits = (r.origin || '').replace(/\D/g, '')
+            return descDigits.includes(cnpjDigits) || origDigits.includes(cnpjDigits)
+        })
 
-        if (declaracao.taxDue > 100 && !repasseEncontrado) {
+        const totalRepasses = repassesEmpresa.reduce((sum, rep) => sum + rep.amount, 0)
+        const diferencaPagamento = declaracao.taxDue - totalRepasses
+        const toleranciaPagamento = Math.max(50, declaracao.taxDue * 0.05)
+
+        if (declaracao.taxDue > 100 && diferencaPagamento > toleranciaPagamento) {
+            const percentual = (diferencaPagamento / declaracao.taxDue) * 100
+            const divergencia: DivergenciaDetalhada = {
+                tipo: 'INADIMPLENTE',
+                descricao: `Empresa declarou R$ ${declaracao.taxDue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} de ISS devido no periodo ${period}, mas os repasses DAF607 somam apenas R$ ${totalRepasses.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`,
+                valor: diferencaPagamento,
+                valorDeclarado: totalRepasses,
+                valorEsperado: declaracao.taxDue,
+                percentualDivergencia: percentual,
+                gravidade: percentual > 50 ? 'CRITICA' : percentual > 20 ? 'ALTA' : 'MEDIA',
+                fundamentoLegal: 'CTN, Art. 139 e Lei Municipal de ISS',
+                periodo: period
+            }
             resultados.push({
                 companyId: declaracao.companyId,
                 cnpj: declaracao.company.cnpj,
                 razaoSocial: declaracao.company.name,
-                divergencias: [{
-                    tipo: 'INADIMPLENTE',
-                    descricao: `Empresa declarou R$ ${declaracao.taxDue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} de ISS devido no periodo ${period}, mas nao ha registro de pagamento.`,
-                    valor: declaracao.taxDue,
-                    valorDeclarado: declaracao.taxDue,
-                    valorEsperado: 0,
-                    percentualDivergencia: 100,
-                    gravidade: declaracao.taxDue > 5000 ? 'CRITICA' : declaracao.taxDue > 1000 ? 'ALTA' : 'MEDIA',
-                    fundamentoLegal: 'CTN, Art. 139 e Lei Municipal de ISS',
-                    periodo: period
-                }],
+                divergencias: [divergencia],
                 totalDivergencias: 1,
-                valorTotalDivergente: declaracao.taxDue,
-                score: 20
+                valorTotalDivergente: diferencaPagamento,
+                score: calcularScore([divergencia])
             })
         }
     }
@@ -513,9 +582,9 @@ export async function executarTodosCruzamentos(
         ...resultado3.divergencias
     ]
 
-    const scoreGeral = Math.round(
-        (resultado1.score * 0.4 + resultado2.score * 0.35 + resultado3.score * 0.25)
-    )
+    const scoreGeral = todasDivergencias.length === 0
+        ? 100
+        : calcularScore(todasDivergencias)
 
     for (const div of todasDivergencias) {
         await prisma.divergence.create({
