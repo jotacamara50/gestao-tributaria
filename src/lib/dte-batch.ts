@@ -23,7 +23,7 @@ function pad(value: string, size: number, filler = ' ') {
 
 export class DTELayoutGenerator {
     static buildRegistro(message: DTEMessageRecord) {
-        // Layout simples posicional: tipo(3) + cnpj(14) + data(8) + codMsg(4)
+        // Layout posicional: tipo(3) + cnpj(14) + data(8 AAAAMMDD) + codMsg(4)
         const tipo = pad(message.tipoRegistro, 3, '0')
         const cnpj = pad(message.cnpj.replace(/\D/g, ''), 14, '0')
         const data = format(message.sentAt, 'yyyyMMdd')
@@ -87,12 +87,16 @@ export async function generateDTEBatch(options: DTEBatchOptions = {}): Promise<B
         })
     })
 
+    // Header e trailer posicionais (sem pipes)
+    const header = `HDR${format(generatedAt, 'yyyyMMdd')}${pad(messages.length.toString(), 5, '0')}`
+    const trailer = `TRL${pad(messages.length.toString(), 5, '0')}`
+
     let content = ''
     if (formatType === 'xml') {
         const items = registros.map(r => `<Registro>${r}</Registro>`).join('\n')
-        content = `<?xml version="1.0" encoding="UTF-8"?>\n<LoteDTE geradoEm="${format(generatedAt, 'yyyy-MM-dd\'T\'HH:mm:ss')}">\n${items}\n</LoteDTE>`
+        content = `<?xml version="1.0" encoding="UTF-8"?>\n<LoteDTE geradoEm="${format(generatedAt, 'yyyy-MM-dd\'T\'HH:mm:ss')}">\n  <Header>${header}</Header>\n${items}\n  <Trailer>${trailer}</Trailer>\n</LoteDTE>`
     } else {
-        content = registros.join('\n')
+        content = [header, ...registros, trailer].join('\n')
     }
 
     const filename = `DTE_LOTE_${format(generatedAt, 'yyyyMMdd_HHmmss')}.${formatType}`
