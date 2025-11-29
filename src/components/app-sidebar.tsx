@@ -69,6 +69,12 @@ const data = {
       icon: AlertTriangle,
     },
     {
+      title: "Usuarios",
+      url: "/usuarios",
+      icon: Building2,
+      role: "ADMIN",
+    },
+    {
       title: "Configuracoes",
       url: "/configuracoes",
       icon: Settings,
@@ -82,6 +88,35 @@ const data = {
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const [userRole, setUserRole] = React.useState<string | null>(null)
+  const [userName, setUserName] = React.useState<string>(data.user.name)
+  const [userEmail, setUserEmail] = React.useState<string>(data.user.email)
+
+  React.useEffect(() => {
+    // best effort: role might be set on window for client-side menu filtering
+    if (typeof window !== "undefined" && (window as any).__USER_ROLE) {
+      setUserRole((window as any).__USER_ROLE)
+    }
+    async function loadRole() {
+      try {
+        const resp = await fetch("/api/auth/session")
+        if (resp.ok) {
+          const data = await resp.json()
+          const role = data?.user?.role || null
+          setUserName(data?.user?.name || "Usuario")
+          setUserEmail(data?.user?.email || "")
+          setUserRole(role)
+          if (typeof window !== "undefined") {
+            ;(window as any).__USER_ROLE = role
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadRole()
+  }, [])
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -103,29 +138,48 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <SidebarMenu>
-          {data.navMain.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton size="lg" asChild tooltip={item.title}>
-                <a href={item.url}>
-                  <item.icon />
-                  <span>{item.title}</span>
-                </a>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {data.navMain
+            .filter((item) => {
+              if (!item.role) return true
+              if (userRole === "ADMIN") return true
+              return item.role === userRole
+            })
+            .map((item) => (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton size="lg" asChild tooltip={item.title}>
+                  <a href={item.url}>
+                    <item.icon />
+                    <span>{item.title}</span>
+                  </a>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
+            <SidebarMenuButton
+              size="lg"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              onClick={async (e) => {
+                e.preventDefault()
+                try {
+                  await fetch("/api/auth/signout", { method: "POST" })
+                } catch {
+                  // ignore
+                } finally {
+                  window.location.href = "/login"
+                }
+              }}
+            >
               <Avatar className="h-8 w-8 rounded-lg">
-                <AvatarImage src={data.user.avatar} alt={data.user.name} />
+                <AvatarImage src={data.user.avatar} alt={userName} />
                 <AvatarFallback className="rounded-lg">FA</AvatarFallback>
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">{data.user.name}</span>
-                <span className="truncate text-xs">{data.user.email}</span>
+                <span className="truncate font-semibold">{userName}</span>
+                <span className="truncate text-xs">{userEmail}</span>
               </div>
               <LogOut className="ml-auto size-4" />
             </SidebarMenuButton>

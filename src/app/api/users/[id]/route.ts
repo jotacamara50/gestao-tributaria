@@ -2,11 +2,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+type ParamsInput = { params: { id: string } } | { params: Promise<{ id: string }> }
+
+export async function PATCH(request: NextRequest, ctx: ParamsInput) {
     try {
+        const paramsObj = 'then' in ctx.params ? await ctx.params : ctx.params
+        if (!paramsObj?.id) {
+            return NextResponse.json({ error: 'id obrigatorio' }, { status: 400 })
+        }
         const body = await request.json()
+        const where = paramsObj.id ? { id: paramsObj.id } : body?.id ? { id: body.id } : body?.email ? { email: body.email } : body?.cpf ? { cpf: body.cpf } : null
+        if (!where) {
+            return NextResponse.json({ error: 'id obrigatorio' }, { status: 400 })
+        }
+        // garantir que existe para evitar erro de filtro vazio
+        const exists = await prisma.user.findUnique({ where })
+        if (!exists) {
+            return NextResponse.json({ error: 'Usuario nao encontrado' }, { status: 404 })
+        }
         const user = await prisma.user.update({
-            where: { id: params.id },
+            where,
             data: {
                 name: body.name,
                 matricula: body.matricula,

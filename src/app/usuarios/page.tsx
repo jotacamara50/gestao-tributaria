@@ -32,6 +32,8 @@ export default function UsuariosPage() {
     const [users, setUsers] = useState<UserRow[]>([])
     const [loading, setLoading] = useState(false)
     const [open, setOpen] = useState(false)
+    const [saving, setSaving] = useState(false)
+    const [confirmDeactivate, setConfirmDeactivate] = useState<{ id: string; active: boolean } | null>(null)
     const [form, setForm] = useState({
         id: "",
         name: "",
@@ -46,6 +48,8 @@ export default function UsuariosPage() {
         password: "",
         active: true
     })
+    const [passwordStrength, setPasswordStrength] = useState<"fraca" | "media" | "forte" | "">("")
+    const [showPassword, setShowPassword] = useState(false)
 
     useEffect(() => {
         loadUsers()
@@ -57,6 +61,8 @@ export default function UsuariosPage() {
             const resp = await fetch("/api/users")
             if (resp.ok) {
                 setUsers(await resp.json())
+            } else {
+                toast({ title: "Erro ao carregar usuarios", variant: "destructive" })
             }
         } finally {
             setLoading(false)
@@ -103,29 +109,54 @@ export default function UsuariosPage() {
         setOpen(true)
     }
 
+    function measureStrength(pw: string): "fraca" | "media" | "forte" | "" {
+        if (!pw) return ""
+        const hasLetter = /[A-Za-z]/.test(pw)
+        const hasNumber = /\d/.test(pw)
+        if (pw.length >= 8 && hasLetter && hasNumber) return "forte"
+        if (pw.length >= 6) return "media"
+        return "fraca"
+    }
+
     async function saveUser() {
         if (!form.name || !form.email || !form.cpf) return
         if (!form.id && !form.password) return
-
+        setSaving(true)
         if (form.id) {
-            const resp = await fetch(`/api/users/${form.id}`, {
-                method: "PATCH",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    name: form.name,
-                    matricula: form.matricula,
-                    cargo: form.cargo,
-                    localTrabalho: form.localTrabalho,
-                    phone: form.phone,
-                    role: form.role,
-                    profiles: form.profiles,
-                    active: form.active
+            if (!form.id.trim()) {
+                toast({ title: "Erro ao atualizar", description: "ID do usuario ausente", variant: "destructive" })
+                setSaving(false)
+                return
+            }
+            try {
+                const resp = await fetch(`/api/users/${form.id}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        name: form.name,
+                        matricula: form.matricula,
+                        cargo: form.cargo,
+                        localTrabalho: form.localTrabalho,
+                        phone: form.phone,
+                        role: form.role,
+                        profiles: form.profiles,
+                        active: form.active
+                    })
                 })
-            })
-            if (resp.ok) {
-                const updated = await resp.json()
-                setUsers((prev) => prev.map((u) => u.id === updated.id ? updated : u))
-                toast({ title: "Usuario atualizado" })
+                if (resp.ok) {
+                    const updated = await resp.json()
+                    setUsers((prev) => prev.map((u) => u.id === updated.id ? updated : u))
+                    toast({ title: "Usuario atualizado" })
+                } else {
+                    const errText = await resp.text().catch(() => "")
+                    toast({ title: "Erro ao atualizar", description: errText || "Falha ao salvar", variant: "destructive" })
+                    setSaving(false)
+                    return
+                }
+            } catch (error) {
+                toast({ title: "Erro ao atualizar", description: "Falha de rede", variant: "destructive" })
+                setSaving(false)
+                return
             }
         } else {
             const resp = await fetch("/api/users", {
@@ -149,9 +180,16 @@ export default function UsuariosPage() {
                 const created = await resp.json()
                 setUsers((prev) => [created, ...prev])
                 toast({ title: "Usuario criado" })
+            } else {
+                const err = await resp.json().catch(() => ({}))
+                toast({ title: "Erro ao criar usuario", description: err?.error || "Falha ao salvar", variant: "destructive" })
+                setSaving(false)
+                return
             }
         }
         setOpen(false)
+        setSaving(false)
+        loadUsers()
     }
 
     return (
@@ -195,7 +233,10 @@ export default function UsuariosPage() {
                                     <TableCell>{u.cargo}</TableCell>
                                     <TableCell>{u.profiles || u.role}</TableCell>
                                     <TableCell>
-                                        <Switch checked={u.active} onCheckedChange={(checked) => openEdit({ ...u, active: checked })} />
+                                        <Switch
+                                            checked={u.active}
+                                            onCheckedChange={(checked) => setConfirmDeactivate({ id: u.id, active: checked })}
+                                        />
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <Button size="sm" variant="outline" onClick={() => openEdit(u)}>Editar</Button>
@@ -276,16 +317,68 @@ export default function UsuariosPage() {
                         </div>
                         {!form.id && (
                             <div className="space-y-1">
-                                <Label>Senha (para POC)</Label>
-                                <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+                                <Label>Senha</Label>
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        type={showPassword ? "text" : "password"}
+                                        value={form.password}
+                                        onChange={(e) => {
+                                            const value = e.target.value
+                                            setForm({ ...form, password: value })
+                                            setPasswordStrength(measureStrength(value))
+                                        }}
+                                    />
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                        <Switch checked={showPassword} onCheckedChange={setShowPassword} />
+                                        <span>Mostrar</span>
+                                    </div>
+                                </div>
+                                {passwordStrength && (
+                                    <div className="text-xs">
+                                        {passwordStrength === "fraca" && <span className="text-red-600">Fraca (1-5 caracteres)</span>}
+                                        {passwordStrength === "media" && <span className="text-amber-600">Media (6-7 caracteres)</span>}
+                                        {passwordStrength === "forte" && <span className="text-green-600">Forte (8+ letras e numeros)</span>}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
                     <DialogFooter className="mt-2">
                         <Button variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button>
-                        <Button onClick={saveUser} disabled={!form.name || !form.email || !form.cpf || (!form.id && !form.password)}>
-                            Salvar
+                        <Button onClick={saveUser} disabled={saving || !form.name || !form.email || !form.cpf || (!form.id && !form.password)}>
+                            {saving ? "Salvando..." : "Salvar"}
                         </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!confirmDeactivate} onOpenChange={(val) => { if (!val) setConfirmDeactivate(null) }}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Confirmar alteracao</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-muted-foreground">Tem certeza? O usuario perdera acesso imediatamente.</p>
+                    <DialogFooter>
+                        <Button variant="secondary" onClick={() => setConfirmDeactivate(null)}>Cancelar</Button>
+                        <Button onClick={() => {
+                            const target = users.find(u => u.id === confirmDeactivate?.id)
+                            if (!target) {
+                                setConfirmDeactivate(null)
+                                return
+                            }
+                            fetch(`/api/users/${target.id}`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ ...target, active: confirmDeactivate?.active })
+                            }).then(async (resp) => {
+                                if (resp.ok) {
+                                    const updated = await resp.json()
+                                    setUsers((prev) => prev.map(u => u.id === updated.id ? updated : u))
+                                    toast({ title: updated.active ? "Usuario reativado" : "Usuario desativado" })
+                                }
+                                setConfirmDeactivate(null)
+                            })
+                        }}>Confirmar</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
