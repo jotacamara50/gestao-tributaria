@@ -48,6 +48,8 @@ export async function GET(request: NextRequest) {
     const valorAtrasoPorComp: Record<string, number> = {}
     const valorAReceberPorComp: Record<string, number> = {}
     const atrasoPorEmpresa: Record<string, { parcelas: number; valor: number }> = {}
+    const parcelasPagasPorComp: Record<string, number> = {}
+    const parcelamentosPorComp: Record<string, Set<string>> = {}
 
     for (const p of parcelas) {
       const comp = compFromDate(p.vencimento)
@@ -69,6 +71,12 @@ export async function GET(request: NextRequest) {
       if (!isPaga) {
         valorAReceberPorComp[comp] = (valorAReceberPorComp[comp] || 0) + restante
       }
+      if (isPaga && p.pagoEm) {
+        const compPago = compFromDate(p.pagoEm)
+        parcelasPagasPorComp[compPago] = (parcelasPagasPorComp[compPago] || 0) + (p.valorPago || p.valor)
+      }
+      if (!parcelamentosPorComp[comp]) parcelamentosPorComp[comp] = new Set<string>()
+      parcelamentosPorComp[comp].add(p.parcelamentoId)
     }
 
     const empresasAtraso: EmpresaAtraso[] = Object.entries(atrasoPorEmpresa)
@@ -96,6 +104,14 @@ export async function GET(request: NextRequest) {
       competencia: c,
       valor: valorAReceberPorComp[c] || 0,
     }))
+    const serieValorPago: SerieNumero[] = comps.map((c) => ({
+      competencia: c,
+      valor: parcelasPagasPorComp[c] || 0,
+    }))
+    const serieParcelamentos: SerieNumero[] = comps.map((c) => ({
+      competencia: c,
+      valor: (parcelamentosPorComp[c]?.size) || 0,
+    }))
 
     return NextResponse.json({
       periodo: { meses, inicio },
@@ -108,6 +124,8 @@ export async function GET(request: NextRequest) {
         parcelasAtrasadas: serieAtrasos,
         valorAtraso: serieValorAtraso,
         valorAberto: serieValorAberto,
+        valorPago: serieValorPago,
+        parcelamentos: serieParcelamentos,
       },
     })
   } catch (error) {

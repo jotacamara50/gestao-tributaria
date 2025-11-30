@@ -111,6 +111,70 @@ type NFSeTomadorResumo = {
 type RepassesFaixa = { faixa: string; valor: number }
 type RepassesOrigem = { origem: string; valor: number }
 
+type RetificacaoMenor = {
+  companyId: string
+  cnpj: string
+  name: string
+  competencia: string
+  receitaOriginal: number
+  receitaRetificada: number
+  impostoOriginal: number
+  impostoRetificado: number
+  diferencaReceita: number
+  diferencaImposto: number
+}
+
+type SuspensaoParcelamento = {
+  companyId: string
+  cnpj: string
+  name: string
+  competencia: string
+  motivo: string
+}
+
+type DasdOmisso = {
+  companyId: string
+  cnpj: string
+  name: string
+  competencia: string
+  nfseQuantidade: number
+  nfseBase: number
+}
+
+type DasdDeclarou = {
+  companyId: string
+  cnpj: string
+  name: string
+  competencia: string
+  nfseQuantidade: number
+  nfseBase: number
+}
+
+type AtividadeContabil = {
+  companyId: string
+  cnpj: string
+  name: string
+  competencia: string
+}
+
+type RegimeEspecial = {
+  companyId: string
+  cnpj: string
+  name: string
+  competencia: string
+  base: number
+}
+
+type ReceitaOutroMunicipio = {
+  companyId: string
+  cnpj: string
+  name: string
+  competencia: string
+  tipo: 'para_fora' | 'de_fora'
+  base: number
+  municipio?: string
+}
+
 function competenciasUltimosMeses(qtd: number) {
   const hoje = new Date()
   const lista: string[] = []
@@ -154,7 +218,7 @@ export async function GET(request: NextRequest) {
 
     const settings = await prisma.settings.findUnique({ where: { id: 'default' } })
 
-    const [companies, declarations, invoices, repasses, guias] = await Promise.all([
+    const [companies, declarations, invoices, repasses, guias, parcelas, dasd] = await Promise.all([
       prisma.company.findMany({
         select: { id: true, cnpj: true, name: true, issIsento: true },
       }),
@@ -181,6 +245,14 @@ export async function GET(request: NextRequest) {
         where: { pagoEm: { not: null, gte: inicio } },
         select: { companyId: true, pagoEm: true, valorPago: true, valorTotal: true },
       }),
+      prisma.parcela.findMany({
+        where: { vencimento: { gte: inicio } },
+        select: { parcelamentoId: true, vencimento: true, situacao: true, parcelamento: { select: { companyId: true } } },
+      }),
+      prisma.dasdDeclaration.findMany({
+        where: { createdAt: { gte: inicio } },
+        select: { companyId: true, period: true, municipioIncidencia: true, regimeEspecial: true, atividadeContabil: true, receitaDeclarada: true, receitaCaixa: true },
+      }),
     ])
 
     // maps
@@ -197,11 +269,16 @@ export async function GET(request: NextRequest) {
     })
 
     const nfseMap = new Map<string, Record<string, number>>()
-    invoices.forEach((n) => {
+    const nfseCountMap = new Map<string, Record<string, number>>()
+  const declListMap = new Map<string, Record<string, { revenues: number[]; taxes: number[] }>>()
+  invoices.forEach((n) => {
       const comp = compFromDate(n.issueDate)
       const byComp = nfseMap.get(n.companyId) || {}
       byComp[comp] = (byComp[comp] || 0) + n.value
       nfseMap.set(n.companyId, byComp)
+      const countComp = nfseCountMap.get(n.companyId) || {}
+      countComp[comp] = (countComp[comp] || 0) + 1
+      nfseCountMap.set(n.companyId, countComp)
 
       const item = n.serviceCode || 'ITEM'
       const keyItem = `${comp}|${item}`
@@ -226,7 +303,17 @@ export async function GET(request: NextRequest) {
       atualTomador.qtd += 1
       atualTomador.base += n.value
       nfseTomadorMap.set(keyTomador, atualTomador)
-    })
+  })
+  declarations.forEach((d) => {
+    const comp = compFromPeriod(d.period)
+    if (!comp) return
+    const byComp = declListMap.get(d.companyId) || {}
+    const entry = byComp[comp] || { revenues: [], taxes: [] }
+    entry.revenues.push(d.revenue)
+    entry.taxes.push(d.taxDue)
+    byComp[comp] = entry
+    declListMap.set(d.companyId, byComp)
+  })
 
     // pre-agragacoes para retencao e municipio
     const retencaoMap = new Map<string, Record<string, number>>() // comp => valor retido notas
@@ -280,6 +367,33 @@ export async function GET(request: NextRequest) {
       guiasPagasMap.set(g.companyId, byComp)
     })
 
+    const dasdMap = new Map<string, Set<string>>()
+    const dasdDetalhe = new Map<string, Record<string, { municipio?: string; regime?: string; atividade?: boolean; receita?: number; caixa?: number }>>()
+    dasd.forEach((d) => {
+      const comp = compFromPeriod(d.period)
+      if (!comp) return
+      const set = dasdMap.get(d.companyId) || new Set<string>()
+      set.add(comp)
+      dasdMap.set(d.companyId, set)
+
+      const det = dasdDetalhe.get(d.companyId) || {}
+      det[comp] = {
+        municipio: d.municipioIncidencia || undefined,
+        regime: d.regimeEspecial || undefined,
+        atividade: d.atividadeContabil || false,
+        receita: d.receitaDeclarada || undefined,
+        caixa: d.receitaCaixa || undefined,
+      }
+      dasdDetalhe.set(d.companyId, det)
+    })
+
+    // competencias com parcelamento ativo/atrasado para suspender divergencias
+    const compsParceladas = new Set<string>()
+    parcelas.forEach((p) => {
+      const comp = compFromDate(p.vencimento)
+      compsParceladas.add(`${p.parcelamento.companyId}|${comp}`)
+    })
+
     const omissos: Omissao[] = []
     const semMovimento: SemMovimento[] = []
     const divergencias: Divergencia[] = []
@@ -291,15 +405,25 @@ export async function GET(request: NextRequest) {
     const inadimplentes: Inadimplente[] = []
     const declararamSemNFSe: DeclarouSemNFSe[] = []
     const declararamComNFSe: DeclarouComNFSe[] = []
-    const nfsePorItemMap = new Map<string, { comp: string; item: string; qtd: number; base: number; iss: number }>()
-    const nfsePorCnaeMap = new Map<string, { comp: string; cnae: string; qtd: number; base: number; iss: number }>()
-    const nfseTomadorMap = new Map<string, { comp: string; tomador: string; qtd: number; base: number }>()
-    const repasseFaixa: Record<string, number> = {}
-    const repasseOrigem: Record<string, number> = {}
+  const nfsePorItemMap = new Map<string, { comp: string; item: string; qtd: number; base: number; iss: number }>()
+  const nfsePorCnaeMap = new Map<string, { comp: string; cnae: string; qtd: number; base: number; iss: number }>()
+  const nfseTomadorMap = new Map<string, { comp: string; tomador: string; qtd: number; base: number }>()
+  const repasseFaixa: Record<string, number> = {}
+  const repasseOrigem: Record<string, number> = {}
+  const retificacoesMenor: RetificacaoMenor[] = []
+  const suspensoesParcelamento: SuspensaoParcelamento[] = []
+  const dasdOmissos: DasdOmisso[] = []
+  const dasdDeclarouNFSe: DasdDeclarou[] = []
+  const dasdDeclarouSemNFSe: DasdDeclarou[] = []
+  const atividadesContabeis: AtividadeContabil[] = []
+  const regimesEspeciais: RegimeEspecial[] = []
+  const receitasOutroMunicipio: ReceitaOutroMunicipio[] = []
 
     companies.forEach((c) => {
       const decls = decMap.get(c.id) || {}
+      const declDetalhe = declListMap.get(c.id) || {}
       const nfse = nfseMap.get(c.id) || {}
+      const nfseCount = nfseCountMap.get(c.id) || {}
       const repassesEmpresa = repasseMap.get(c.cnpj.replace(/\D/g, '')) || {}
 
       const compsOmissos: string[] = []
@@ -318,15 +442,26 @@ export async function GET(request: NextRequest) {
         }
 
         if (dec && notas > dec.revenue) {
-          divergencias.push({
-            companyId: c.id,
-            cnpj: c.cnpj,
-            name: c.name,
-            competencia: comp,
-            declarado: dec.revenue,
-            nfse: notas,
-            diferenca: notas - dec.revenue,
-          })
+          const chaveParc = `${c.id}|${comp}`
+          if (compsParceladas.has(chaveParc)) {
+            suspensoesParcelamento.push({
+              companyId: c.id,
+              cnpj: c.cnpj,
+              name: c.name,
+              competencia: comp,
+              motivo: 'Período com débito parcelado - divergência suspensa',
+            })
+          } else {
+            divergencias.push({
+              companyId: c.id,
+              cnpj: c.cnpj,
+              name: c.name,
+              competencia: comp,
+              declarado: dec.revenue,
+              nfse: notas,
+              diferenca: notas - dec.revenue,
+            })
+          }
         }
 
         if (dec && dec.revenue > 0 && notas === 0) {
@@ -400,15 +535,26 @@ export async function GET(request: NextRequest) {
           const diferenca = dec.taxDue - pagosTotais
           const tolerancia = Math.max(50, dec.taxDue * 0.05)
           if (diferenca > tolerancia) {
-            inadimplentes.push({
-              companyId: c.id,
-              cnpj: c.cnpj,
-              name: c.name,
-              competencia: comp,
-              devido: Number(dec.taxDue.toFixed(2)),
-              pago: Number(pagosTotais.toFixed(2)),
-              diferenca: Number(diferenca.toFixed(2)),
-            })
+            const chaveParc = `${c.id}|${comp}`
+            if (compsParceladas.has(chaveParc)) {
+              suspensoesParcelamento.push({
+                companyId: c.id,
+                cnpj: c.cnpj,
+                name: c.name,
+                competencia: comp,
+                motivo: 'Período com débito parcelado - inadimplência suspensa',
+              })
+            } else {
+              inadimplentes.push({
+                companyId: c.id,
+                cnpj: c.cnpj,
+                name: c.name,
+                competencia: comp,
+                devido: Number(dec.taxDue.toFixed(2)),
+                pago: Number(pagosTotais.toFixed(2)),
+                diferenca: Number(diferenca.toFixed(2)),
+              })
+            }
           }
         }
       })
@@ -420,6 +566,63 @@ export async function GET(request: NextRequest) {
         semMovimento.push({ companyId: c.id, cnpj: c.cnpj, name: c.name, competencias: compsSemMov })
       }
 
+      // retificacoes a menor (primeira x ultima declaracao)
+      Object.entries(declDetalhe).forEach(([comp, entry]) => {
+        if (entry.revenues.length > 1) {
+          const originalR = entry.revenues[0]
+          const retificadaR = entry.revenues[entry.revenues.length - 1]
+          const originalT = entry.taxes[0]
+          const retificadaT = entry.taxes[entry.taxes.length - 1]
+          if (retificadaR < originalR || retificadaT < originalT) {
+            retificacoesMenor.push({
+              companyId: c.id,
+              cnpj: c.cnpj,
+              name: c.name,
+              competencia: comp,
+              receitaOriginal: originalR,
+              receitaRetificada: retificadaR,
+              impostoOriginal: originalT,
+              impostoRetificado: retificadaT,
+              diferencaReceita: retificadaR - originalR,
+              diferencaImposto: retificadaT - originalT,
+            })
+          }
+        }
+      })
+
+      // regime especial / atividade contábil e receitas para outros municipios a partir da DAS-D
+      const dasdInfo = dasdDetalhe.get(c.id) || {}
+      Object.entries(dasdInfo).forEach(([comp, info]) => {
+        if (info.regime) {
+          regimesEspeciais.push({
+            companyId: c.id,
+            cnpj: c.cnpj,
+            name: c.name,
+            competencia: comp,
+            base: info.receita || info.caixa || 0,
+          })
+        }
+        if (info.atividade) {
+          atividadesContabeis.push({
+            companyId: c.id,
+            cnpj: c.cnpj,
+            name: c.name,
+            competencia: comp,
+          })
+        }
+        if (info.municipio && settings?.cityName && info.municipio.toLowerCase() !== settings.cityName.toLowerCase()) {
+          receitasOutroMunicipio.push({
+            companyId: c.id,
+            cnpj: c.cnpj,
+            name: c.name,
+            competencia: comp,
+            tipo: 'para_fora',
+            base: info.receita || info.caixa || 0,
+            municipio: info.municipio,
+          })
+        }
+      })
+
       // faturamento 12m para sublimite/limite por empresa
       const comps12 = comps.slice(-12)
       const receita12 = comps12.reduce((s, comp) => s + (decls[comp]?.revenue || 0), 0)
@@ -428,6 +631,47 @@ export async function GET(request: NextRequest) {
       } else if (receita12 > 3600000) {
         sublimite.push({ companyId: c.id, cnpj: c.cnpj, name: c.name, receita12m: receita12 })
       }
+
+      // DAS-D omissos / declararam com/sem NFSe
+      const dasdSet = dasdMap.get(c.id) || new Set<string>()
+      comps.forEach((comp) => {
+        const entregouDasd = dasdSet.has(comp)
+        const nfseQtd = nfseCount[comp] || 0
+        const nfseBase = nfse[comp] || 0
+
+        if (!entregouDasd) {
+          if (nfseBase > 0) {
+            dasdOmissos.push({
+              companyId: c.id,
+              cnpj: c.cnpj,
+              name: c.name,
+              competencia: comp,
+              nfseQuantidade: nfseQtd,
+              nfseBase,
+            })
+          }
+        } else {
+          if (nfseBase > 0) {
+            dasdDeclarouNFSe.push({
+              companyId: c.id,
+              cnpj: c.cnpj,
+              name: c.name,
+              competencia: comp,
+              nfseQuantidade: nfseQtd,
+              nfseBase,
+            })
+          } else {
+            dasdDeclarouSemNFSe.push({
+              companyId: c.id,
+              cnpj: c.cnpj,
+              name: c.name,
+              competencia: comp,
+              nfseQuantidade: nfseQtd,
+              nfseBase,
+            })
+          }
+        }
+      })
     })
 
     return NextResponse.json({
@@ -469,6 +713,14 @@ export async function GET(request: NextRequest) {
         baseCalculo: i.base,
         issEstimado: i.iss,
       })),
+      retificacoesMenor: retificacoesMenor.sort((a, b) => a.diferencaReceita - b.diferencaReceita),
+      suspensoesParcelamento,
+      dasdOmissos,
+      dasdDeclarouNFSe,
+      dasdDeclarouSemNFSe,
+      atividadesContabeis,
+      regimesEspeciais,
+      receitasOutroMunicipio,
     })
   } catch (error) {
     console.error('Erro nos cruzamentos SN:', error)

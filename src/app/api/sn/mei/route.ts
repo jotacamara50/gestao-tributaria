@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
         .map((c) => c.id)
     )
 
-    const [declarations, invoices] = await Promise.all([
+    const [declarations, invoices, guias] = await Promise.all([
       prisma.declaration.findMany({
         where: { companyId: { in: Array.from(meiIds) }, createdAt: { gte: inicio } },
         select: { companyId: true, period: true, revenue: true, taxDue: true },
@@ -60,6 +60,10 @@ export async function GET(request: NextRequest) {
       prisma.invoice.findMany({
         where: { companyId: { in: Array.from(meiIds) }, issueDate: { gte: inicio } },
         select: { companyId: true, issueDate: true, value: true },
+      }),
+      prisma.guia.findMany({
+        where: { companyId: { in: Array.from(meiIds) }, pagoEm: { not: null, gte: inicio } },
+        select: { companyId: true, pagoEm: true, valorPago: true, valorTotal: true },
       }),
     ])
 
@@ -75,6 +79,12 @@ export async function GET(request: NextRequest) {
       const comp = compFromDate(n.issueDate)
       nfsePorComp[comp] = (nfsePorComp[comp] || 0) + n.value
     })
+    const pagosPorComp: Record<string, number> = {}
+    guias.forEach((g) => {
+      if (!g.pagoEm) return
+      const comp = compFromDate(g.pagoEm)
+      pagosPorComp[comp] = (pagosPorComp[comp] || 0) + (g.valorPago ?? g.valorTotal ?? 0)
+    })
 
     const omissosPorComp: Record<string, number> = {}
     comps.forEach((comp) => {
@@ -85,6 +95,7 @@ export async function GET(request: NextRequest) {
     const serieEntregas: SerieNumero[] = comps.map((c) => ({ competencia: c, valor: entregasPorComp[c] || 0 }))
     const serieOmissos: SerieNumero[] = comps.map((c) => ({ competencia: c, valor: omissosPorComp[c] || 0 }))
     const serieNFSe: SerieNumero[] = comps.map((c) => ({ competencia: c, valor: nfsePorComp[c] || 0 }))
+    const seriePagos: SerieNumero[] = comps.map((c) => ({ competencia: c, valor: pagosPorComp[c] || 0 }))
 
     return NextResponse.json({
       periodo: { meses, inicio },
@@ -95,6 +106,7 @@ export async function GET(request: NextRequest) {
         entregas: serieEntregas,
         omissos: serieOmissos,
         nfse: serieNFSe,
+        pagos: seriePagos,
       },
     })
   } catch (error) {

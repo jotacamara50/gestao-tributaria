@@ -94,6 +94,7 @@ export default function RelatoriosPage() {
   const [ano, setAno] = useState(new Date().getFullYear().toString())
   const [minDebito, setMinDebito] = useState("0")
   const [settings, setSettings] = useState<Settings>({})
+  const [recorte, setRecorte] = useState<"12m" | "5a">("5a")
 
   const [omissos, setOmissos] = useState<OmissosItem[]>([])
   const [inadimplentes, setInadimplentes] = useState<InadimplenteItem[]>([])
@@ -108,7 +109,7 @@ export default function RelatoriosPage() {
   const [historicoMeta, setHistoricoMeta] = useState<{ cnpj?: string; razaoSocial?: string }>({})
   const [cnpjFiltro, setCnpjFiltro] = useState("")
   const [historicoCnpj, setHistoricoCnpj] = useState("")
-  const [historicoMeses, setHistoricoMeses] = useState("12")
+  const [historicoMeses, setHistoricoMeses] = useState("60")
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -116,6 +117,25 @@ export default function RelatoriosPage() {
       if (r.ok) setSettings(await r.json())
     }).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    const now = new Date()
+    const mm = `${now.getMonth() + 1}`.padStart(2, "0")
+    const yy = now.getFullYear()
+    setPeriodo(`${mm}/${yy}`)
+    setHistoricoMeses(recorte === "5a" ? "60" : "12")
+    setAno(yy.toString())
+  }, [recorte])
+
+  useEffect(() => {
+    // Ajusta filtros padrão conforme recorte
+    const now = new Date()
+    const mm = `${now.getMonth() + 1}`.padStart(2, "0")
+    const yy = now.getFullYear()
+    setPeriodo(`${mm}/${yy}`)
+    setHistoricoMeses(recorte === "5a" ? "60" : "12")
+    setAno(recorte === "5a" ? yy.toString() : yy.toString())
+  }, [recorte])
 
   const branding = useMemo(() => ({
     logoUrl: settings.logoUrl || undefined,
@@ -187,7 +207,7 @@ export default function RelatoriosPage() {
     try {
       const query = new URLSearchParams({
         cnpj: historicoCnpj,
-        months: historicoMeses || "12"
+        months: historicoMeses || (recorte === "5a" ? "60" : "12")
       })
       const resp = await fetch(`/api/reports/historico?${query.toString()}`)
       if (resp.ok) {
@@ -239,14 +259,20 @@ export default function RelatoriosPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 justify-between flex-wrap">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Relatorios Oficiais</h2>
           <p className="text-muted-foreground">
             Geracao com filtros, exportacao PDF/CSV/Excel e cabecalho com brasao.
           </p>
         </div>
-        {loading && <AlertTriangle className="h-5 w-5 text-amber-500 animate-pulse" />}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-md border p-1">
+            <Button size="sm" variant={recorte === "12m" ? "default" : "ghost"} onClick={() => setRecorte("12m")}>12 meses</Button>
+            <Button size="sm" variant={recorte === "5a" ? "default" : "ghost"} onClick={() => setRecorte("5a")}>5 anos</Button>
+          </div>
+          {loading && <AlertTriangle className="h-5 w-5 text-amber-500 animate-pulse" />}
+        </div>
       </div>
 
       <Tabs defaultValue="omissos">

@@ -254,6 +254,11 @@ model DasdDeclaration {
   companyId  String
   period     String
   deliveredAt DateTime?
+  municipioIncidencia String?
+  regimeEspecial      String?
+  atividadeContabil   Boolean?
+  receitaDeclarada    Float?
+  receitaCaixa        Float?
   createdAt  DateTime @default(now())
   company    Company  @relation(fields: [companyId], references: [id])
 

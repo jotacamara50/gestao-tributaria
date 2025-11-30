@@ -40,17 +40,35 @@ type CrossingResp = {
   nfseTomadas: Array<{ competencia: string; tomadorCnpj: string; quantidade: number; baseCalculo: number }>
   repassesFaixa: Array<{ faixa: string; valor: number }>
   repassesOrigem: Array<{ origem: string; valor: number }>
+  retificacoesMenor: Array<{
+    cnpj: string
+    name: string
+    competencia: string
+    receitaOriginal: number
+    receitaRetificada: number
+    impostoOriginal: number
+    impostoRetificado: number
+    diferencaReceita: number
+    diferencaImposto: number
+  }>
+  suspensoesParcelamento: Array<{ cnpj: string; name: string; competencia: string; motivo: string }>
+  dasdOmissos: Array<{ cnpj: string; name: string; competencia: string; nfseQuantidade: number; nfseBase: number }>
+  dasdDeclarouNFSe: Array<{ cnpj: string; name: string; competencia: string; nfseQuantidade: number; nfseBase: number }>
+  dasdDeclarouSemNFSe: Array<{ cnpj: string; name: string; competencia: string; nfseQuantidade: number; nfseBase: number }>
+  atividadesContabeis: Array<{ cnpj: string; name: string; competencia: string }>
+  regimesEspeciais: Array<{ cnpj: string; name: string; competencia: string; base: number }>
+  receitasOutroMunicipio: Array<{ cnpj: string; name: string; competencia: string; tipo: string; base: number; municipio?: string }>
 }
 
 type ParcelResp = {
   resumo: { empresasParcelamento: number; empresasParcelamentoAtraso: number }
   empresasAtraso?: Array<{ cnpj: string; name: string; parcelas: number; valor: number }>
-  series: { valorAtraso: SerieValor[]; valorAberto: SerieValor[] }
+  series: { valorAtraso: SerieValor[]; valorAberto: SerieValor[]; valorPago?: SerieValor[]; parcelamentos?: SerieValor[] }
 }
 
 type MeiResp = {
   resumo: { empresasMei: number }
-  series: { omissos: SerieValor[] }
+  series: { omissos: SerieValor[]; pagos?: SerieValor[]; nfse?: SerieValor[] }
 }
 
 type RiscoResp = {
@@ -229,6 +247,78 @@ export default function CruzamentoSNPage() {
             <div className="text-sm text-muted-foreground">
               Últ. comp.: {currency.format(cross?.inadimplentes?.slice(-1)[0]?.diferenca || 0)} em aberto
             </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Omissos DAS-D (emitiram NFSe)</CardTitle>
+            <CardDescription>Não declararam DAS-D e emitiram notas</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Comp</TableHead>
+                  <TableHead className="text-right">Base NFSe</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {top(cross?.dasdOmissos?.sort((a, b) => b.nfseBase - a.nfseBase)).map((d, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>{d.name}<div className="text-xs text-muted-foreground">{d.cnpj}</div></TableCell>
+                    <TableCell>{d.competencia}</TableCell>
+                    <TableCell className="text-right">{currency.format(d.nfseBase || 0)}</TableCell>
+                  </TableRow>
+                ))}
+                {!cross?.dasdOmissos?.length && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-sm text-muted-foreground">Sem omissos DAS-D com NFSe.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>DAS-D entregues</CardTitle>
+            <CardDescription>Com NFSe x sem NFSe</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Comp</TableHead>
+                  <TableHead className="text-right">Base NFSe</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {top(cross?.dasdDeclarouNFSe?.sort((a, b) => b.nfseBase - a.nfseBase)).map((d, idx) => (
+                  <TableRow key={`n${idx}`}>
+                    <TableCell>{d.name}<div className="text-xs text-muted-foreground">{d.cnpj}</div></TableCell>
+                    <TableCell>{d.competencia}</TableCell>
+                    <TableCell className="text-right">{currency.format(d.nfseBase || 0)}</TableCell>
+                  </TableRow>
+                ))}
+                {top(cross?.dasdDeclarouSemNFSe?.sort((a, b) => a.competencia.localeCompare(b.competencia))).map((d, idx) => (
+                  <TableRow key={`s${idx}`}>
+                    <TableCell>{d.name}<div className="text-xs text-muted-foreground">{d.cnpj}</div></TableCell>
+                    <TableCell>{d.competencia}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">sem NFSe</TableCell>
+                  </TableRow>
+                ))}
+                {!cross?.dasdDeclarouNFSe?.length && !cross?.dasdDeclarouSemNFSe?.length && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-sm text-muted-foreground">Nenhuma DAS-D registrada.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       </div>
@@ -535,6 +625,38 @@ export default function CruzamentoSNPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Suspensões por parcelamento</CardTitle>
+          <CardDescription>Divergências/inadimplências não consideradas</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Empresa</TableHead>
+                <TableHead>Comp</TableHead>
+                <TableHead>Motivo</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {top(cross?.suspensoesParcelamento, 10).map((s, idx) => (
+                <TableRow key={idx}>
+                  <TableCell>{s.name}<div className="text-xs text-muted-foreground">{s.cnpj}</div></TableCell>
+                  <TableCell>{s.competencia}</TableCell>
+                  <TableCell className="text-xs">{s.motivo}</TableCell>
+                </TableRow>
+              ))}
+              {!cross?.suspensoesParcelamento?.length && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-sm text-muted-foreground">Nenhuma divergência suspensa por parcelamento.</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>NFSe por Item de Serviço</CardTitle>
           <CardDescription>Base e ISS estimado por competência</CardDescription>
         </CardHeader>
@@ -562,6 +684,141 @@ export default function CruzamentoSNPage() {
               {!cross?.nfsePorItem?.length && (
                 <TableRow>
                   <TableCell colSpan={5} className="text-sm text-muted-foreground">Sem notas no período.</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Retificações a menor (PGDAS)</CardTitle>
+          <CardDescription>Comparação entre original x retificada</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Empresa</TableHead>
+                <TableHead>Comp</TableHead>
+                <TableHead className="text-right">Receita Δ</TableHead>
+                <TableHead className="text-right">Imposto Δ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {top(cross?.retificacoesMenor?.sort((a, b) => a.diferencaReceita - b.diferencaReceita), 10).map((r, idx) => (
+                <TableRow key={idx}>
+                  <TableCell>{r.name}<div className="text-xs text-muted-foreground">{r.cnpj}</div></TableCell>
+                  <TableCell>{r.competencia}</TableCell>
+                  <TableCell className="text-right text-destructive">
+                    {currency.format(r.diferencaReceita || 0)}
+                  </TableCell>
+                  <TableCell className="text-right text-destructive">
+                    {currency.format(r.diferencaImposto || 0)}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {!cross?.retificacoesMenor?.length && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-sm text-muted-foreground">Sem retificações a menor.</TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Atividades contábeis declaradas</CardTitle>
+            <CardDescription>Regime/atividade contábil na DAS-D</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Comp</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {top(cross?.atividadesContabeis).map((a, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>{a.name}<div className="text-xs text-muted-foreground">{a.cnpj}</div></TableCell>
+                    <TableCell>{a.competencia}</TableCell>
+                  </TableRow>
+                ))}
+                {!cross?.atividadesContabeis?.length && (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-sm text-muted-foreground">Nenhuma atividade contábil declarada.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Regime especial declarado</CardTitle>
+            <CardDescription>Base declarada com regime especial</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead>Comp</TableHead>
+                  <TableHead className="text-right">Base</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {top(cross?.regimesEspeciais?.sort((a, b) => b.base - a.base)).map((r, idx) => (
+                  <TableRow key={idx}>
+                    <TableCell>{r.name}<div className="text-xs text-muted-foreground">{r.cnpj}</div></TableCell>
+                    <TableCell>{r.competencia}</TableCell>
+                    <TableCell className="text-right">{currency.format(r.base || 0)}</TableCell>
+                  </TableRow>
+                ))}
+                {!cross?.regimesEspeciais?.length && (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-sm text-muted-foreground">Nenhum regime especial declarado.</TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Receitas para/de outros municípios</CardTitle>
+          <CardDescription>Identificadas na DAS-D</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Empresa</TableHead>
+                <TableHead>Comp</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead className="text-right">Base</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {top(cross?.receitasOutroMunicipio?.sort((a, b) => b.base - a.base), 10).map((r, idx) => (
+                <TableRow key={idx}>
+                  <TableCell>{r.name}<div className="text-xs text-muted-foreground">{r.cnpj}</div></TableCell>
+                  <TableCell>{r.competencia}</TableCell>
+                  <TableCell>{r.tipo === "para_fora" ? "Declarado para outro município" : "Receita de fora"}</TableCell>
+                  <TableCell className="text-right">{currency.format(r.base || 0)}</TableCell>
+                </TableRow>
+              ))}
+              {!cross?.receitasOutroMunicipio?.length && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-sm text-muted-foreground">Nenhuma receita para/de outros municípios identificada.</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -651,6 +908,8 @@ export default function CruzamentoSNPage() {
             <div>Com atraso: {parc?.resumo.empresasParcelamentoAtraso ?? 0}</div>
             <div>Valor em atraso (últ. mês): {currency.format(parc?.series.valorAtraso.slice(-1)[0]?.valor || 0)}</div>
             <div>Valor em aberto (últ. mês): {currency.format(parc?.series.valorAberto.slice(-1)[0]?.valor || 0)}</div>
+            <div>Valor pago (últ. mês): {currency.format(parc?.series.valorPago?.slice(-1)[0]?.valor || 0)}</div>
+            <div>Nº parcelamentos (últ. mês): {parc?.series.parcelamentos?.slice(-1)[0]?.valor ?? 0}</div>
             <div className="pt-2">
               <div className="font-semibold text-sm mb-1">Empresas com parcelas em atraso</div>
               <Table>
@@ -687,6 +946,8 @@ export default function CruzamentoSNPage() {
           <CardContent className="space-y-2">
             <div>Empresas MEI: {mei?.resumo.empresasMei ?? 0}</div>
             <div>Omissos (últ. mês): {mei?.series.omissos.slice(-1)[0]?.valor ?? 0}</div>
+            <div>Pagos (últ. mês): {currency.format(mei?.series.pagos?.slice(-1)[0]?.valor || 0)}</div>
+            <div>NFSe (últ. mês): {currency.format(mei?.series.nfse?.slice(-1)[0]?.valor || 0)}</div>
           </CardContent>
         </Card>
       </div>

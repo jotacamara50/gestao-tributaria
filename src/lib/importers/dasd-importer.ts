@@ -26,17 +26,33 @@ export async function importDASD(content: string) {
         const company = await findCompanyByCnpj(cnpj)
         if (!company) continue
 
+        const municipioIncidencia = row['municipio'] || row['municipio_incidencia'] || undefined
+        const regimeEspecial = row['regime_especial'] || row['regime'] || undefined
+        const atividadeContabil = (row['atividade_contabil'] || '').toLowerCase() === 'true' || row['atividade_contabil'] === '1'
+        const receitaDeclarada = parseFloat(row['receita_declarada'] || row['receita'] || '0')
+        const receitaCaixa = parseFloat(row['receita_caixa'] || '0')
+
         await prisma.dasdDeclaration.upsert({
             where: {
                 companyId_period: { companyId: company.id, period },
             },
             update: {
                 deliveredAt: row['entregueem'] ? new Date(row['entregueem']) : undefined,
+                municipioIncidencia,
+                regimeEspecial,
+                atividadeContabil: atividadeContabil || undefined,
+                receitaDeclarada: isNaN(receitaDeclarada) ? undefined : receitaDeclarada,
+                receitaCaixa: isNaN(receitaCaixa) ? undefined : receitaCaixa,
             },
             create: {
                 companyId: company.id,
                 period,
                 deliveredAt: row['entregueem'] ? new Date(row['entregueem']) : undefined,
+                municipioIncidencia,
+                regimeEspecial,
+                atividadeContabil: atividadeContabil || undefined,
+                receitaDeclarada: isNaN(receitaDeclarada) ? undefined : receitaDeclarada,
+                receitaCaixa: isNaN(receitaCaixa) ? undefined : receitaCaixa,
             }
         })
         imported += 1

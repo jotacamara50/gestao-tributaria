@@ -1,0 +1,6 @@
+cnpj,periodo,municipio,regime_especial,atividade_contabil,receita_declarada,receita_caixa,entregueem
+11223344000155,202510,Vila Rica,REGIME ESPECIAL,false,52000,52000,2025-10-15
+12345678000190,202510,Ouro Preto,,true,48500,48500,2025-10-16
+98765432000110,202510,Ouro Preto,,false,50500,50500,2025-10-16
+55443322000188,202510,Ouro Preto,,false,44000,44000,2025-10-17
+99887766000122,202510,Vila Rica,REGIME ESPECIAL,false,46000,46000,2025-10-18
