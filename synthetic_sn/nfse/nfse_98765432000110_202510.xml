@@ -1,0 +1,38 @@
+
+<CompNfse>
+  <Nfse>
+    <InfNfse>
+      <Numero>202510004</Numero>
+      <CodigoVerificacao>NEW4</CodigoVerificacao>
+      <DataEmissao>2025-10-20</DataEmissao>
+      <Competencia>2025-10-01</Competencia>
+      <NaturezaOperacao>1</NaturezaOperacao>
+      <PrestadorServico>
+        <IdentificacaoPrestador>
+          <Cnpj>98765432000110</Cnpj>
+        </IdentificacaoPrestador>
+        <RazaoSocial>Beta Servicos Municipais</RazaoSocial>
+      </PrestadorServico>
+      <TomadorServico>
+        <IdentificacaoTomador>
+          <CpfCnpj><Cnpj>00112233000144</Cnpj></CpfCnpj>
+        </IdentificacaoTomador>
+        <RazaoSocial>Cliente Beta</RazaoSocial>
+      </TomadorServico>
+      <Servico>
+        <Valores>
+          <ValorServicos>69000.00</ValorServicos>
+          <ValorIss>2070.00</ValorIss>
+          <IssRetido>1</IssRetido>
+          <ValorLiquidoNfse>66930.00</ValorLiquidoNfse>
+          <BaseCalculo>69000.00</BaseCalculo>
+          <Aliquota>0.03</Aliquota>
+        </Valores>
+        <ItemListaServico>702</ItemListaServico>
+        <CodigoCnae>7020400</CodigoCnae>
+        <Discriminacao>Servicos prestados</Discriminacao>
+        <CodigoMunicipio>3103900</CodigoMunicipio>
+      </Servico>
+    </InfNfse>
+  </Nfse>
+</CompNfse>

@@ -41,24 +41,11 @@ export async function importGuias(content: string) {
 
         if (!numero || !periodo || !dataEmissao || !vencimento) continue
 
-        const guia = await prisma.guia.upsert({
-            where: { numero },
-            update: {
-                companyId: company.id,
-                periodo,
-                dataEmissao: new Date(dataEmissao),
-                vencimento: new Date(vencimento),
-                situacao,
-                valorTotal,
-                valorPrincipal,
-                valorMulta,
-                valorJuros,
-                pagoEm: pagoEm ? new Date(pagoEm) : undefined,
-                banco,
-                agencia,
-                valorPago: valorPago || undefined,
-            },
-            create: {
+        // Dedup: mantém apenas uma guia por empresa + número
+        await prisma.guia.deleteMany({ where: { companyId: company.id, numero } })
+
+        const guia = await prisma.guia.create({
+            data: {
                 companyId: company.id,
                 numero,
                 periodo,
@@ -96,5 +83,5 @@ export async function importGuias(content: string) {
         imported += 1
     }
 
-    return { message: `Guias processadas: ${imported}` }
+    return { message: `Guias processadas: ${imported}`, count: imported, parsedCount: rows.length, skipped: rows.length - imported }
 }

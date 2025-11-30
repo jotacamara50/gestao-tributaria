@@ -1,0 +1,38 @@
+
+<CompNfse>
+  <Nfse>
+    <InfNfse>
+      <Numero>202510005</Numero>
+      <CodigoVerificacao>NEW5</CodigoVerificacao>
+      <DataEmissao>2025-10-22</DataEmissao>
+      <Competencia>2025-10-01</Competencia>
+      <NaturezaOperacao>1</NaturezaOperacao>
+      <PrestadorServico>
+        <IdentificacaoPrestador>
+          <Cnpj>99887766000122</Cnpj>
+        </IdentificacaoPrestador>
+        <RazaoSocial>Delta Engenharia</RazaoSocial>
+      </PrestadorServico>
+      <TomadorServico>
+        <IdentificacaoTomador>
+          <CpfCnpj><Cnpj>00998877000111</Cnpj></CpfCnpj>
+        </IdentificacaoTomador>
+        <RazaoSocial>Cliente Delta</RazaoSocial>
+      </TomadorServico>
+      <Servico>
+        <Valores>
+          <ValorServicos>56000.00</ValorServicos>
+          <ValorIss>1624.00</ValorIss>
+          <IssRetido>1</IssRetido>
+          <ValorLiquidoNfse>54376.00</ValorLiquidoNfse>
+          <BaseCalculo>56000.00</BaseCalculo>
+          <Aliquota>0.029</Aliquota>
+        </Valores>
+        <ItemListaServico>701</ItemListaServico>
+        <CodigoCnae>4299099</CodigoCnae>
+        <Discriminacao>Servicos prestados</Discriminacao>
+        <CodigoMunicipio>3103900</CodigoMunicipio>
+      </Servico>
+    </InfNfse>
+  </Nfse>
+</CompNfse>

@@ -17,6 +17,11 @@ export async function importPGDAS(xmlContent: string) {
         return { error: 'Company not found', cnpj: parsed.cnpj, parsed }
     }
 
+    // Dedup: mantém apenas uma declaração PGDAS por empresa + período (substitui retificações)
+    await prisma.declaration.deleteMany({
+        where: { companyId: company.id, period: parsed.period, type: 'PGDAS' }
+    })
+
     const declaration = await prisma.declaration.create({
         data: {
             companyId: company.id,

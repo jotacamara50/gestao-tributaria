@@ -3,6 +3,7 @@ import { auth } from '@/app/api/auth/[...nextauth]/route'
 import { prisma } from '@/lib/prisma'
 
 type SerieNumero = { competencia: string; valor: number }
+type EmpresaAtraso = { companyId: string; cnpj: string; name: string; parcelas: number; valor: number }
 
 function competenciasUltimosMeses(qtd: number) {
   const hoje = new Date()
@@ -32,10 +33,13 @@ export async function GET(request: NextRequest) {
     const comps = competenciasUltimosMeses(meses)
     const inicio = new Date(comps[0] + '-01')
 
-    const parcelas = await prisma.parcela.findMany({
-      where: { vencimento: { gte: inicio } },
-      include: { parcelamento: { select: { companyId: true, situacao: true } } },
-    })
+    const [parcelas, companies] = await Promise.all([
+      prisma.parcela.findMany({
+        where: { vencimento: { gte: inicio } },
+        include: { parcelamento: { select: { companyId: true, situacao: true } } },
+      }),
+      prisma.company.findMany({ select: { id: true, cnpj: true, name: true } }),
+    ])
 
     // agregações
     const empresasComParcelamento = new Set<string>()
@@ -43,8 +47,9 @@ export async function GET(request: NextRequest) {
     const atrasosPorComp: Record<string, number> = {}
     const valorAtrasoPorComp: Record<string, number> = {}
     const valorAReceberPorComp: Record<string, number> = {}
+    const atrasoPorEmpresa: Record<string, { parcelas: number; valor: number }> = {}
 
-    parcelsLoop: for (const p of parcelas) {
+    for (const p of parcelas) {
       const comp = compFromDate(p.vencimento)
       const empresa = p.parcelamento.companyId
       empresasComParcelamento.add(empresa)
@@ -56,11 +61,28 @@ export async function GET(request: NextRequest) {
         empresasComParcelamentoAtraso.add(empresa)
         atrasosPorComp[comp] = (atrasosPorComp[comp] || 0) + 1
         valorAtrasoPorComp[comp] = (valorAtrasoPorComp[comp] || 0) + restante
+        atrasoPorEmpresa[empresa] = {
+          parcelas: (atrasoPorEmpresa[empresa]?.parcelas || 0) + 1,
+          valor: (atrasoPorEmpresa[empresa]?.valor || 0) + restante,
+        }
       }
       if (!isPaga) {
         valorAReceberPorComp[comp] = (valorAReceberPorComp[comp] || 0) + restante
       }
     }
+
+    const empresasAtraso: EmpresaAtraso[] = Object.entries(atrasoPorEmpresa)
+      .map(([companyId, info]) => {
+        const compInfo = companies.find((c) => c.id === companyId)
+        return {
+          companyId,
+          cnpj: compInfo?.cnpj || '',
+          name: compInfo?.name || companyId,
+          parcelas: info.parcelas,
+          valor: info.valor,
+        }
+      })
+      .sort((a, b) => b.valor - a.valor)
 
     const serieAtrasos: SerieNumero[] = comps.map((c) => ({
       competencia: c,
@@ -81,6 +103,7 @@ export async function GET(request: NextRequest) {
         empresasParcelamento: empresasComParcelamento.size,
         empresasParcelamentoAtraso: empresasComParcelamentoAtraso.size,
       },
+      empresasAtraso,
       series: {
         parcelasAtrasadas: serieAtrasos,
         valorAtraso: serieValorAtraso,

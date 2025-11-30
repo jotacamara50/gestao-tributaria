@@ -50,7 +50,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 })
     }
 
-    const comps = competenciasUltimosMeses(60)
+    const { searchParams } = new URL(request.url)
+    const anos = Number(searchParams.get('anos') || '5')
+    const meses = Math.max(12, Math.min(anos * 12, 60))
+    const comps = competenciasUltimosMeses(meses)
     const inicio = new Date(comps[0] + '-01')
 
     const [companies, declarations, invoices] = await Promise.all([
@@ -119,7 +122,7 @@ export async function GET(request: NextRequest) {
     )
 
     return NextResponse.json({
-      periodo: { competencias: comps },
+      periodo: { competencias: comps, anos, meses },
       resumo,
       empresas: resultados.sort((a, b) => b.divergencia - a.divergencia),
     })

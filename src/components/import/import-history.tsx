@@ -10,7 +10,8 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { FileText, CheckCircle, XCircle, Clock } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { Button } from "@/components/ui/button"
 
 type ImportItem = {
     id: string
@@ -24,6 +25,7 @@ type ImportItem = {
 export function ImportHistory() {
     const [historyData, setHistoryData] = useState<ImportItem[]>([])
     const [loading, setLoading] = useState(true)
+    const [filter, setFilter] = useState<string>('Todos')
 
     useEffect(() => {
         async function loadHistory() {
@@ -50,8 +52,31 @@ export function ImportHistory() {
         loadHistory()
     }, [])
 
+    const filtered = useMemo(() => {
+        const data = filter === 'Todos' ? historyData : historyData.filter((h) => h.type === filter)
+        return data.slice(0, 50)
+    }, [historyData, filter])
+
+    const tipos = useMemo(() => ['Todos', ...Array.from(new Set(historyData.map((h) => h.type)))], [historyData])
+
     return (
         <div className="rounded-md border">
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 border-b">
+                <div className="text-sm text-muted-foreground">Mostrando até 50 entradas mais recentes.</div>
+                <div className="flex flex-wrap gap-2 items-center">
+                    <span className="text-xs text-muted-foreground">Filtro:</span>
+                    {tipos.map((t) => (
+                        <Button
+                            key={t}
+                            size="sm"
+                            variant={filter === t ? "default" : "outline"}
+                            onClick={() => setFilter(t)}
+                        >
+                            {t}
+                        </Button>
+                    ))}
+                </div>
+            </div>
             <Table>
                 <TableHeader>
                     <TableRow>
@@ -63,7 +88,7 @@ export function ImportHistory() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {historyData.map((item) => (
+                    {filtered.map((item) => (
                         <TableRow key={item.id}>
                             <TableCell className="font-medium flex items-center gap-2">
                                 <FileText className="h-4 w-4 text-muted-foreground" />

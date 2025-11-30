@@ -10,21 +10,24 @@ export interface DAF607Data {
 }
 
 export function parseDAF607(csvContent: string): DAF607Data[] {
-    // Tenta CSV/; antes de cair para CNAB/posicional
+    // Tenta CSV (delimitador ; ou ,) antes de cair para CNAB/posicional
     try {
+        const firstLine = csvContent.split(/\r?\n/)[0] || ''
+        const delimiter = firstLine.includes(';') ? ';' : ','
         const records = parse(csvContent, {
             columns: true,
             skip_empty_lines: true,
-            delimiter: ';',
+            delimiter,
+            relax_column_count: true,
         })
 
         if (Array.isArray(records) && records.length) {
             return records.map((record: any) => ({
-                date: new Date(record.Data || record.data || record.DATE),
-                amount: parseFloat(record.Valor || record.valor || record.VALUE || '0'),
+                date: parseCompetencia(record.Competencia || record.competencia || record.Data || record.data || record.DATE),
+                amount: parseFloat((record.Valor || record.valor || record.VALUE || '').toString().replace(/\./g, '').replace(',', '.')) || 0,
                 origin: 'DAF607',
                 description: record.Descricao || record.descricao || record.DESCRIPTION,
-                cnpj: (record.CNPJ || record.cnpj || '').replace(/\D/g, '') || undefined,
+                cnpj: (record.CNPJ || record.cnpj || record.cnpjTomador || '').replace(/\D/g, '') || undefined,
             }))
         }
     } catch {
@@ -53,9 +56,30 @@ export function parseDAF607(csvContent: string): DAF607Data[] {
         return {
             date,
             amount,
-            origin: 'DAF607',
-            description: 'CNAB DAF607',
+            origin: cnpj ? `DAF607 ${cnpj}` : 'DAF607',
+            description: `CNAB DAF607${cnpj ? ' ' + cnpj : ''}`,
             cnpj: cnpj || undefined
         }
     })
+}
+
+function parseCompetencia(raw?: string): Date {
+    if (!raw) return new Date(NaN)
+    const clean = raw.toString().trim()
+    // formatos: AAAAMM, AAAA-MM, DD/MM/AAAA
+    if (/^\d{6}$/.test(clean)) {
+        const year = parseInt(clean.slice(0, 4), 10)
+        const month = parseInt(clean.slice(4, 6), 10) - 1
+        return new Date(year, month, 1)
+    }
+    if (/^\d{4}-\d{2}$/.test(clean)) {
+        const [y, m] = clean.split('-')
+        return new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1)
+    }
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(clean)) {
+        const [d, m, y] = clean.split('/').map((v) => parseInt(v, 10))
+        return new Date(y, m - 1, d)
+    }
+    const date = new Date(clean)
+    return date
 }

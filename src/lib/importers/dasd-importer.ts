@@ -42,5 +42,5 @@ export async function importDASD(content: string) {
         imported += 1
     }
 
-    return { message: `DAS-D importadas: ${imported}` }
+    return { message: `DAS-D importadas: ${imported}`, count: imported, parsedCount: rows.length, skipped: rows.length - imported }
 }

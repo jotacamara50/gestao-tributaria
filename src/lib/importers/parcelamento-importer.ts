@@ -35,28 +35,35 @@ export async function importParcelamentos(content: string) {
         const dataPedido = row['data_pedido'] || row['datapedido']
         const dataSituacao = row['data_situacao'] || row['datasituacao']
 
-        const parcelamento = await prisma.parcelamento.upsert({
-            where: { numero },
-            update: {
-                companyId: company.id,
-                valorTotal,
-                quantidadeParcelas: qtdParcelas || undefined,
-                situacao,
-                tipo: tipo || undefined,
-                dataPedido: dataPedido ? new Date(dataPedido) : new Date(),
-                dataSituacao: dataSituacao ? new Date(dataSituacao) : undefined,
-            },
-            create: {
-                companyId: company.id,
-                numero,
-                valorTotal,
-                quantidadeParcelas: qtdParcelas || 0,
-                situacao,
-                tipo: tipo || undefined,
-                dataPedido: dataPedido ? new Date(dataPedido) : new Date(),
-                dataSituacao: dataSituacao ? new Date(dataSituacao) : undefined,
-            }
-        })
+        const existing = await prisma.parcelamento.findFirst({ where: { numero, companyId: company.id } })
+        let parcelamento
+        if (existing) {
+            parcelamento = await prisma.parcelamento.update({
+                where: { id: existing.id },
+                data: {
+                    companyId: company.id,
+                    valorTotal,
+                    quantidadeParcelas: qtdParcelas || undefined,
+                    situacao,
+                    tipo: tipo || undefined,
+                    dataPedido: dataPedido ? new Date(dataPedido) : new Date(),
+                    dataSituacao: dataSituacao ? new Date(dataSituacao) : undefined,
+                }
+            })
+        } else {
+            parcelamento = await prisma.parcelamento.create({
+                data: {
+                    companyId: company.id,
+                    numero,
+                    valorTotal,
+                    quantidadeParcelas: qtdParcelas || 0,
+                    situacao,
+                    tipo: tipo || undefined,
+                    dataPedido: dataPedido ? new Date(dataPedido) : new Date(),
+                    dataSituacao: dataSituacao ? new Date(dataSituacao) : undefined,
+                }
+            })
+        }
 
         // parcelas
         const parcelaNumero = parseInt(row['parcela_numero'] || row['parcelanumero'] || '0', 10)
@@ -94,5 +101,5 @@ export async function importParcelamentos(content: string) {
         imported += 1
     }
 
-    return { message: `Parcelamentos processados: ${imported}` }
+    return { message: `Parcelamentos processados: ${imported}`, count: imported, parsedCount: rows.length, skipped: rows.length - imported }
 }

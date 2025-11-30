@@ -17,6 +17,11 @@ export async function importNFSe(xmlContent: string) {
         return { error: 'Company not found', cnpj: parsed.prestadorCnpj, parsed }
     }
 
+    // Dedup: uma NFSe por empresa + número (substitui se já existir)
+    await prisma.invoice.deleteMany({
+        where: { companyId: company.id, number: parsed.numero }
+    })
+
     const invoice = await prisma.invoice.create({
         data: {
             companyId: company.id,

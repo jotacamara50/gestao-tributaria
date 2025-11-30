@@ -1,0 +1,38 @@
+
+<CompNfse>
+  <Nfse>
+    <InfNfse>
+      <Numero>202510002</Numero>
+      <CodigoVerificacao>NEW2</CodigoVerificacao>
+      <DataEmissao>2025-10-12</DataEmissao>
+      <Competencia>2025-10-01</Competencia>
+      <NaturezaOperacao>1</NaturezaOperacao>
+      <PrestadorServico>
+        <IdentificacaoPrestador>
+          <Cnpj>12345678000190</Cnpj>
+        </IdentificacaoPrestador>
+        <RazaoSocial>Alfa Tecnologia Ltda</RazaoSocial>
+      </PrestadorServico>
+      <TomadorServico>
+        <IdentificacaoTomador>
+          <CpfCnpj><Cnpj>00112233000144</Cnpj></CpfCnpj>
+        </IdentificacaoTomador>
+        <RazaoSocial>Cliente Alfa</RazaoSocial>
+      </TomadorServico>
+      <Servico>
+        <Valores>
+          <ValorServicos>72000.00</ValorServicos>
+          <ValorIss>2160.00</ValorIss>
+          <IssRetido>1</IssRetido>
+          <ValorLiquidoNfse>69840.00</ValorLiquidoNfse>
+          <BaseCalculo>72000.00</BaseCalculo>
+          <Aliquota>0.03</Aliquota>
+        </Valores>
+        <ItemListaServico>701</ItemListaServico>
+        <CodigoCnae>6201500</CodigoCnae>
+        <Discriminacao>Servicos prestados</Discriminacao>
+        <CodigoMunicipio>3103900</CodigoMunicipio>
+      </Servico>
+    </InfNfse>
+  </Nfse>
+</CompNfse>

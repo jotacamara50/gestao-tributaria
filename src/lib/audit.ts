@@ -11,12 +11,20 @@ export interface AuditLogData {
     ipAddress?: string
 }
 
-export async function createAuditLog(data: AuditLogData) {
+async function resolveUserId() {
     const session = await auth()
+    const userId = session?.user?.id
+    if (!userId) return null
+    const exists = await prisma.user.count({ where: { id: userId } })
+    return exists ? userId : null
+}
+
+export async function createAuditLog(data: AuditLogData) {
+    const userId = await resolveUserId()
 
     return await prisma.auditLog.create({
         data: {
-            userId: session?.user?.id,
+            userId,
             action: data.action,
             resource: data.resource,
             details: data.details,
@@ -34,11 +42,11 @@ export async function logAction(
     before?: unknown,
     after?: unknown
 ) {
-    const session = await auth()
+    const userId = await resolveUserId()
 
     return await prisma.auditLog.create({
         data: {
-            userId: session?.user?.id,
+            userId,
             action,
             resource,
             details: typeof details === 'string' ? details : JSON.stringify(details),
