@@ -1,0 +1,38 @@
+
+<CompNfse>
+  <Nfse>
+    <InfNfse>
+      <Numero>202101003</Numero>
+      <CodigoVerificacao>ABC2</CodigoVerificacao>
+      <DataEmissao>2021-01-15</DataEmissao>
+      <Competencia>2021-01-01</Competencia>
+      <NaturezaOperacao>1</NaturezaOperacao>
+      <PrestadorServico>
+        <IdentificacaoPrestador>
+          <Cnpj>11223344000155</Cnpj>
+        </IdentificacaoPrestador>
+        <RazaoSocial>Gamma Consultoria</RazaoSocial>
+      </PrestadorServico>
+      <TomadorServico>
+        <IdentificacaoTomador>
+          <CpfCnpj><Cnpj>00998877000111</Cnpj></CpfCnpj>
+        </IdentificacaoTomador>
+        <RazaoSocial>Cliente 2</RazaoSocial>
+      </TomadorServico>
+      <Servico>
+        <Valores>
+          <ValorServicos>31118.00</ValorServicos>
+          <ValorIss>933.54</ValorIss>
+          <IssRetido>1</IssRetido>
+          <ValorLiquidoNfse>30184.46</ValorLiquidoNfse>
+          <BaseCalculo>31118.00</BaseCalculo>
+          <Aliquota>0.03</Aliquota>
+        </Valores>
+        <ItemListaServico>701</ItemListaServico>
+        <CodigoCnae>7020400</CodigoCnae>
+        <Discriminacao>Servicos prestados</Discriminacao>
+        <CodigoMunicipio>3103900</CodigoMunicipio>
+      </Servico>
+    </InfNfse>
+  </Nfse>
+</CompNfse>

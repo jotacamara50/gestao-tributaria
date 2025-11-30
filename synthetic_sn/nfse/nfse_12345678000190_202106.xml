@@ -1,0 +1,38 @@
+
+<CompNfse>
+  <Nfse>
+    <InfNfse>
+      <Numero>202106001</Numero>
+      <CodigoVerificacao>ABC0</CodigoVerificacao>
+      <DataEmissao>2021-06-15</DataEmissao>
+      <Competencia>2021-06-01</Competencia>
+      <NaturezaOperacao>1</NaturezaOperacao>
+      <PrestadorServico>
+        <IdentificacaoPrestador>
+          <Cnpj>12345678000190</Cnpj>
+        </IdentificacaoPrestador>
+        <RazaoSocial>Alfa Tecnologia Ltda</RazaoSocial>
+      </PrestadorServico>
+      <TomadorServico>
+        <IdentificacaoTomador>
+          <CpfCnpj><Cnpj>00998877000111</Cnpj></CpfCnpj>
+        </IdentificacaoTomador>
+        <RazaoSocial>Cliente 0</RazaoSocial>
+      </TomadorServico>
+      <Servico>
+        <Valores>
+          <ValorServicos>25591.00</ValorServicos>
+          <ValorIss>767.73</ValorIss>
+          <IssRetido>1</IssRetido>
+          <ValorLiquidoNfse>24823.27</ValorLiquidoNfse>
+          <BaseCalculo>25591.00</BaseCalculo>
+          <Aliquota>0.03</Aliquota>
+        </Valores>
+        <ItemListaServico>701</ItemListaServico>
+        <CodigoCnae>6201500</CodigoCnae>
+        <Discriminacao>Servicos prestados</Discriminacao>
+        <CodigoMunicipio>3103900</CodigoMunicipio>
+      </Servico>
+    </InfNfse>
+  </Nfse>
+</CompNfse>

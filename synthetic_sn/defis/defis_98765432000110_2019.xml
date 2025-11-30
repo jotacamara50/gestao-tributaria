@@ -1,0 +1,15 @@
+
+<DEFIS>
+  <Identificacao>
+    <CNPJ>98765432000110</CNPJ>
+    <AnoCalendario>2019</AnoCalendario>
+    <Anexo>III</Anexo>
+  </Identificacao>
+  <Receitas>
+    <Total>384262.00</Total>
+  </Receitas>
+  <Despesas>
+    <Folha>76852.40</Folha>
+    <Total>230557.20</Total>
+  </Despesas>
+</DEFIS>

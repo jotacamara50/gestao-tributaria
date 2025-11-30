@@ -81,11 +81,11 @@ export function FileUpload() {
             <CardHeader>
                 <CardTitle>Upload de Arquivos Fiscais</CardTitle>
                 <CardDescription>
-                    Arraste e solte ou selecione arquivos PGDAS, NFS-e ou DAF607
+                    Arraste e solte ou selecione arquivos PGDAS, NFSe, DEFIS, DAS-D, Parcelamentos/Guias ou DAF607
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                     <Button
                         variant={fileType === "PGDAS" ? "default" : "outline"}
                         onClick={() => setFileType("PGDAS")}
@@ -103,6 +103,30 @@ export function FileUpload() {
                         onClick={() => setFileType("DAF607")}
                     >
                         DAF607
+                    </Button>
+                    <Button
+                        variant={fileType === "DEFIS" ? "default" : "outline"}
+                        onClick={() => setFileType("DEFIS")}
+                    >
+                        DEFIS
+                    </Button>
+                    <Button
+                        variant={fileType === "DASD" ? "default" : "outline"}
+                        onClick={() => setFileType("DASD")}
+                    >
+                        DAS-D
+                    </Button>
+                    <Button
+                        variant={fileType === "PARCELAMENTO" ? "default" : "outline"}
+                        onClick={() => setFileType("PARCELAMENTO")}
+                    >
+                        Parcelamentos
+                    </Button>
+                    <Button
+                        variant={fileType === "GUIA" ? "default" : "outline"}
+                        onClick={() => setFileType("GUIA")}
+                    >
+                        Guias
                     </Button>
                 </div>
 

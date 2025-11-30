@@ -1,0 +1,15 @@
+
+<DEFIS>
+  <Identificacao>
+    <CNPJ>55443322000188</CNPJ>
+    <AnoCalendario>2020</AnoCalendario>
+    <Anexo>III</Anexo>
+  </Identificacao>
+  <Receitas>
+    <Total>568418.00</Total>
+  </Receitas>
+  <Despesas>
+    <Folha>113683.60</Folha>
+    <Total>341050.80</Total>
+  </Despesas>
+</DEFIS>

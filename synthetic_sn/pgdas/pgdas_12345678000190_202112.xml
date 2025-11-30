@@ -1,0 +1,16 @@
+
+<DeclaracaoPGDAS>
+  <Cabecalho>
+    <CNPJ>12345678000190</CNPJ>
+    <Periodo>202112</Periodo>
+  </Cabecalho>
+  <DadosApuracao>
+    <ReceitaBrutaMensal>27331.00</ReceitaBrutaMensal>
+    <ReceitaBruta12Meses>327972.00</ReceitaBruta12Meses>
+    <Aliquota>0.03</Aliquota>
+    <ValorDevido>819.93</ValorDevido>
+  </DadosApuracao>
+  <Totalizadores>
+    <ValorDAS>819.93</ValorDAS>
+  </Totalizadores>
+</DeclaracaoPGDAS>

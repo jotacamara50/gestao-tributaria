@@ -1,0 +1,16 @@
+
+<DeclaracaoPGDAS>
+  <Cabecalho>
+    <CNPJ>11223344000155</CNPJ>
+    <Periodo>202203</Periodo>
+  </Cabecalho>
+  <DadosApuracao>
+    <ReceitaBrutaMensal>40420.00</ReceitaBrutaMensal>
+    <ReceitaBruta12Meses>485040.00</ReceitaBruta12Meses>
+    <Aliquota>0.03</Aliquota>
+    <ValorDevido>1212.60</ValorDevido>
+  </DadosApuracao>
+  <Totalizadores>
+    <ValorDAS>1212.60</ValorDAS>
+  </Totalizadores>
+</DeclaracaoPGDAS>

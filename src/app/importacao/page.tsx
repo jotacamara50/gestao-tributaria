@@ -16,7 +16,11 @@ export default function ImportPage() {
                 <div className="space-y-4">
                     <h3 className="text-lg font-semibold">Instruções</h3>
                     <ul className="list-disc list-inside text-sm text-muted-foreground space-y-2">
-                        <li>Arquivos PGDAS devem estar no formato XML padrão da Receita Federal.</li>
+                        <li>PGDAS: XML padrão da Receita Federal (últimos 60 meses).</li>
+                        <li>NFSe: CSV/XML com município de prestação, ISS retido, alíquota e valor retido.</li>
+                        <li>DAS-D: CSV com CNPJ e competência entregue.</li>
+                        <li>DEFIS: CSV/XML com exercícios, recibos e sócios.</li>
+                        <li>Parcelamentos/Guias: CSV com parcelas/valores/situação e tributos da guia.</li>
                         <li>Planilhas de repasse (DAF607) devem ser CSV ou Excel.</li>
                         <li>O sistema valida automaticamente a integridade dos arquivos.</li>
                         <li>Arquivos maiores que 50MB devem ser compactados (.zip).</li>

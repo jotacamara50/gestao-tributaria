@@ -1,0 +1,38 @@
+
+<CompNfse>
+  <Nfse>
+    <InfNfse>
+      <Numero>201907005</Numero>
+      <CodigoVerificacao>ABC4</CodigoVerificacao>
+      <DataEmissao>2019-07-15</DataEmissao>
+      <Competencia>2019-07-01</Competencia>
+      <NaturezaOperacao>1</NaturezaOperacao>
+      <PrestadorServico>
+        <IdentificacaoPrestador>
+          <Cnpj>55443322000188</Cnpj>
+        </IdentificacaoPrestador>
+        <RazaoSocial>Epsilon ME</RazaoSocial>
+      </PrestadorServico>
+      <TomadorServico>
+        <IdentificacaoTomador>
+          <CpfCnpj><Cnpj>00998877000111</Cnpj></CpfCnpj>
+        </IdentificacaoTomador>
+        <RazaoSocial>Cliente 4</RazaoSocial>
+      </TomadorServico>
+      <Servico>
+        <Valores>
+          <ValorServicos>39502.00</ValorServicos>
+          <ValorIss>1185.06</ValorIss>
+          <IssRetido>1</IssRetido>
+          <ValorLiquidoNfse>38316.94</ValorLiquidoNfse>
+          <BaseCalculo>39502.00</BaseCalculo>
+          <Aliquota>0.03</Aliquota>
+        </Valores>
+        <ItemListaServico>701</ItemListaServico>
+        <CodigoCnae>5611201</CodigoCnae>
+        <Discriminacao>Servicos prestados</Discriminacao>
+        <CodigoMunicipio>3103900</CodigoMunicipio>
+      </Servico>
+    </InfNfse>
+  </Nfse>
+</CompNfse>

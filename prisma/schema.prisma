@@ -12,6 +12,7 @@ model Company {
   cnpj                  String                  @unique
   name                  String
   tradeName             String?
+  issIsento             Boolean                 @default(false)
   cnae                  String
   secondaryCnaes        String?
   regime                String                  @default("Simples Nacional")
@@ -31,6 +32,10 @@ model Company {
   fiscalActions         FiscalAction[]
   fiscalHistory         FiscalHistory[]
   supportTickets        SupportTicket[]
+  parcelamentos         Parcelamento[]
+  guias                 Guia[]
+  defis                 Defis[]
+  dasdDeclarations      DasdDeclaration[]
 }
 
 model Invoice {
@@ -43,6 +48,11 @@ model Invoice {
   serviceCode String?
   tomadorCnpj String?
   xmlContent  String?
+  municipioPrestacao String?
+  municipioTomador   String?
+  issRetido          Boolean? @default(false)
+  aliquotaIss        Float?
+  valorIssRetido     Float?
   createdAt   DateTime @default(now())
   company     Company  @relation(fields: [companyId], references: [id])
 }
@@ -54,6 +64,12 @@ model Declaration {
   type       String
   revenue    Float
   taxDue     Float
+  receipt    String?
+  authenticationCode String?
+  regime     String?
+  operationType String?
+  revenueCash Float?
+  revenueCompetence Float?
   xmlContent String?
   createdAt  DateTime @default(now())
   company    Company  @relation(fields: [companyId], references: [id])
@@ -145,11 +161,103 @@ model EnquadramentoHistory {
   id          String    @id @default(cuid())
   companyId   String
   regime      String
+  isMei       Boolean   @default(false)
   startDate   DateTime
   endDate     DateTime?
   reason      String?
   createdAt   DateTime  @default(now())
   company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model Parcelamento {
+  id                 String   @id @default(cuid())
+  companyId          String
+  numero             String
+  situacao           String
+  valorTotal         Float
+  quantidadeParcelas Int
+  tipo               String?
+  dataPedido         DateTime
+  dataSituacao       DateTime?
+  parcelas           Parcela[]
+  company            Company  @relation(fields: [companyId], references: [id])
+}
+
+model Parcela {
+  id              String   @id @default(cuid())
+  parcelamentoId  String
+  numero          Int
+  vencimento      DateTime
+  valor           Float
+  situacao        String
+  pagoEm          DateTime?
+  valorPago       Float?
+  parcelamento    Parcelamento @relation(fields: [parcelamentoId], references: [id], onDelete: Cascade)
+}
+
+model Guia {
+  id             String   @id @default(cuid())
+  companyId      String
+  numero         String
+  periodo        String
+  dataEmissao    DateTime
+  vencimento     DateTime
+  situacao       String
+  valorPrincipal Float
+  valorMulta     Float
+  valorJuros     Float
+  valorTotal     Float
+  pagoEm         DateTime?
+  banco          String?
+  agencia        String?
+  valorPago      Float?
+  tributos       GuiaTributo[]
+  company        Company  @relation(fields: [companyId], references: [id])
+}
+
+model GuiaTributo {
+  id             String   @id @default(cuid())
+  guiaId         String
+  tipo           String
+  valorPrincipal Float
+  valorJuros     Float
+  valorMulta     Float
+  guia           Guia     @relation(fields: [guiaId], references: [id], onDelete: Cascade)
+}
+
+model Defis {
+  id                 String   @id @default(cuid())
+  companyId          String
+  exercicio          Int
+  recibo             String?
+  identificador      String?
+  codigoAutenticacao String?
+  tipo               String?
+  transmitidoEm      DateTime?
+  rendimentosSocios  Float?
+  socios             DefisSocio[]
+  company            Company  @relation(fields: [companyId], references: [id])
+}
+
+model DefisSocio {
+  id        String   @id @default(cuid())
+  defisId   String
+  socioNome String?
+  socioCpf  String?
+  rendimento Float?
+  participacao Float?
+  defis     Defis    @relation(fields: [defisId], references: [id], onDelete: Cascade)
+}
+
+model DasdDeclaration {
+  id         String   @id @default(cuid())
+  companyId  String
+  period     String
+  deliveredAt DateTime?
+  createdAt  DateTime @default(now())
+  company    Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, period], name: "companyId_period")
 }
 
 model DTEMessage {

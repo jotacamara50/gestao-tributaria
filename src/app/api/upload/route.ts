@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
-import { importDAF607, importDEFIS, importNFSe, importPGDAS } from '@/lib/importers'
+import { importDAF607, importDEFIS, importNFSe, importPGDAS, importDASD, importParcelamentos, importGuias } from '@/lib/importers'
 import { logAction } from '@/lib/audit'
 
 export async function POST(request: NextRequest) {
@@ -23,11 +23,20 @@ export async function POST(request: NextRequest) {
             case 'DEFIS':
                 result = await importDEFIS(content)
                 break
+            case 'DASD':
+                result = await importDASD(content)
+                break
             case 'NFSE':
                 result = await importNFSe(content)
                 break
             case 'DAF607':
                 result = await importDAF607(content)
+                break
+            case 'PARCELAMENTO':
+                result = await importParcelamentos(content)
+                break
+            case 'GUIA':
+                result = await importGuias(content)
                 break
             default:
                 return NextResponse.json({ error: 'Invalid file type' }, { status: 400 })

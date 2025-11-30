@@ -1,0 +1,38 @@
+
+<CompNfse>
+  <Nfse>
+    <InfNfse>
+      <Numero>202009004</Numero>
+      <CodigoVerificacao>ABC3</CodigoVerificacao>
+      <DataEmissao>2020-09-15</DataEmissao>
+      <Competencia>2020-09-01</Competencia>
+      <NaturezaOperacao>1</NaturezaOperacao>
+      <PrestadorServico>
+        <IdentificacaoPrestador>
+          <Cnpj>99887766000122</Cnpj>
+        </IdentificacaoPrestador>
+        <RazaoSocial>Delta Engenharia</RazaoSocial>
+      </PrestadorServico>
+      <TomadorServico>
+        <IdentificacaoTomador>
+          <CpfCnpj><Cnpj>00998877000111</Cnpj></CpfCnpj>
+        </IdentificacaoTomador>
+        <RazaoSocial>Cliente 3</RazaoSocial>
+      </TomadorServico>
+      <Servico>
+        <Valores>
+          <ValorServicos>35700.00</ValorServicos>
+          <ValorIss>1071.00</ValorIss>
+          <IssRetido>0</IssRetido>
+          <ValorLiquidoNfse>35700.00</ValorLiquidoNfse>
+          <BaseCalculo>35700.00</BaseCalculo>
+          <Aliquota>0.03</Aliquota>
+        </Valores>
+        <ItemListaServico>701</ItemListaServico>
+        <CodigoCnae>7112000</CodigoCnae>
+        <Discriminacao>Servicos prestados</Discriminacao>
+        <CodigoMunicipio>3103900</CodigoMunicipio>
+      </Servico>
+    </InfNfse>
+  </Nfse>
+</CompNfse>
