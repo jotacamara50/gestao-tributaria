@@ -50,11 +50,6 @@ const data = {
       icon: Building2,
     },
     {
-      title: "Cruzamento",
-      url: "/cruzamento",
-      icon: AlertTriangle,
-    },
-    {
       title: "DTE-SN",
       url: "/dte",
       icon: Mail,

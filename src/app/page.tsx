@@ -2,14 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { 
-  LineChart, Line, BarChart, Bar, PieChart, Pie, AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell 
-} from 'recharts'
-import { 
-  TrendingUp, Users, AlertTriangle, DollarSign, 
-  FileWarning 
-} from "lucide-react"
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { TrendingUp, Users, AlertTriangle, DollarSign, FileWarning } from "lucide-react"
 
 interface DashboardStats {
   resumo: {
@@ -255,7 +249,7 @@ export default function Home() {
           <CardContent>
             {stats.evolucaoOmissao.length > 0 ? (
               <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={stats.evolucaoOmissao}>
+                
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="mes" fontSize={12} />
                   <YAxis fontSize={12} />
@@ -265,25 +259,7 @@ export default function Home() {
                       return value
                     }}
                   />
-                  <Legend />
-                  <Area 
-                    type="monotone" 
-                    dataKey="taxa" 
-                    stroke="#ff8042" 
-                    fill="#ff8042" 
-                    fillOpacity={0.6}
-                    name="Taxa de Omissão (%)"
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="omissos" 
-                    stroke="#8884d8" 
-                    fill="#8884d8" 
-                    fillOpacity={0.3}
-                    name="Qtd Omissos"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+                  <Legend /></ResponsiveContainer>
             ) : (
               <p className="text-center text-muted-foreground py-8">Sem dados de omissão</p>
             )}
