@@ -27,6 +27,12 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { signOut } from "next-auth/react"
 
+declare global {
+  interface Window {
+    __USER_ROLE?: string | null
+  }
+}
+
 const data = {
   user: {
     name: "Fiscal Admin",
@@ -90,8 +96,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   React.useEffect(() => {
     // best effort: role might be set on window for client-side menu filtering
-    if (typeof window !== "undefined" && (window as any).__USER_ROLE) {
-      setUserRole((window as any).__USER_ROLE)
+    if (typeof window !== "undefined" && window.__USER_ROLE) {
+      setUserRole(window.__USER_ROLE)
     }
     async function loadRole() {
       try {
@@ -103,7 +109,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           setUserEmail(data?.user?.email || "")
           setUserRole(role)
           if (typeof window !== "undefined") {
-            ;(window as any).__USER_ROLE = role
+            window.__USER_ROLE = role
           }
         }
       } catch {
@@ -166,7 +172,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   // ignore
                 } finally {
                   if (typeof window !== "undefined") {
-                    ;(window as any).__USER_ROLE = null
+                    window.__USER_ROLE = null
                   }
                 }
               }}

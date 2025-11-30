@@ -31,10 +31,12 @@ export async function POST(request: NextRequest) {
 
         // Gerar mensagem usando template
         const template = dteTemplates[type as DTETemplateType]
+        const dataEmissao = new Date()
         const subject = template.subject(params)
         const bodyContent = template.body({
             empresaNome: company.name,
             cnpj: company.cnpj,
+            dataEmissao,
             ...params
         })
 

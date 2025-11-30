@@ -6,20 +6,32 @@ type DTEMessageRecord = {
     cnpj: string
     sentAt: Date
     codigo: string
-    tipoRegistro: string
+    content: string
 }
 
 const codigoPorTipo: Record<string, string> = {
-    intimacao: '0015',
-    autoInfracao: '0018',
-    notificacao: '0010',
-    aviso: '0009',
-    lembrete: '0008'
+    intimacao: '0015', // Modelo oficial de intimacao
+    autoInfracao: '0018', // Modelo oficial de auto de infracao
+    notificacao: '0019', // Modelo oficial de notificacao
+    aviso: '0032', // Avisos genericos / lembretes
+    lembrete: '0032'
 }
 
 function pad(value: string, size: number, filler = ' ') {
     if (value.length >= size) return value.slice(0, size)
     return value + filler.repeat(size - value.length)
+}
+
+function sanitizeContent(text: string) {
+    const normalized = text
+        .replace(/[\t\r\n]+/g, ' ') // remove quebras e tabs
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // remove acentos
+        .replace(/[^\x20-\x7E]/g, '') // limita a ASCII imprimivel
+        .replace(/\s+/g, ' ') // colapsa espacos
+        .trim()
+        .toUpperCase()
+    return normalized
 }
 
 const LINE_SIZE = 100
@@ -30,18 +42,19 @@ function buildHeader(date: Date, total: number) {
 }
 
 function buildTrailer(total: number) {
-    const base = `TRL${pad(total.toString(), 5, '0')}`
+    const base = `TRAILER${pad(total.toString(), 7, '0')}`
     return pad(base, LINE_SIZE, ' ')
 }
 
 export class DTELayoutGenerator {
     static buildRegistro(message: DTEMessageRecord) {
-        // Layout posicional: tipo(3) + cnpj(14) + data(8 AAAAMMDD) + codMsg(4)
-        const tipo = pad(message.tipoRegistro, 3, '0')
+        // Layout posicional oficial DTE-SN (linha por mensagem):
+        // codigoMensagem(4) + cnpj(14) + dataEnvio(8 AAAAMMDD) + conteudo(74)
+        const codigo = pad(message.codigo, 4, '0')
         const cnpj = pad(message.cnpj.replace(/\D/g, ''), 14, '0')
         const data = format(message.sentAt, 'yyyyMMdd')
-        const cod = pad(message.codigo, 4, '0')
-        const base = `${tipo}${cnpj}${data}${cod}`
+        const conteudo = pad(sanitizeContent(message.content), 74, ' ')
+        const base = `${codigo}${cnpj}${data}${conteudo}`
         return pad(base, LINE_SIZE, ' ')
     }
 }
@@ -97,7 +110,7 @@ export async function generateDTEBatch(options: DTEBatchOptions = {}): Promise<B
             cnpj: msg.company.cnpj,
             sentAt: msg.sentAt,
             codigo,
-            tipoRegistro: '001' // header/tipo mensagem
+            content: msg.content || msg.subject || ''
         })
     })
 

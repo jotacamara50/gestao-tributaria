@@ -1,185 +1,212 @@
-// Templates de mensagens DTE-SN
+type BaseParams = {
+  empresaNome: string
+  cnpj: string
+  dataEmissao?: Date | string
+  autoridade?: string
+  prazo?: string
+  baseLegalExtra?: string
+}
+
+const formatDateBR = (value?: Date | string) => {
+  const data = value ? new Date(value) : new Date()
+  return data.toLocaleDateString('pt-BR')
+}
+
+const autoridadePadrao = 'Secretaria Municipal de Fazenda'
+
 export const dteTemplates = {
   notificacao: {
-    subject: (params: { tipo: string }) => `Notificação Fiscal - ${params.tipo}`,
-    body: (params: { 
-      empresaNome: string
-      cnpj: string
-      tipo: string
-      descricao: string
-      valor?: number
-      prazo?: string
-    }) => `
-Prezado(a) ${params.empresaNome},
+    subject: (params: { assunto?: string }) => `Notificacao Fiscal - ${params.assunto || 'Regularizacao'}`,
+    body: (params: BaseParams & { assunto?: string; descricao?: string }) => `
+PREZADO(A) CONTRIBUINTE,
+
+IDENTIFICACAO DO CONTRIBUINTE
+Razao Social: ${params.empresaNome}
 CNPJ: ${params.cnpj}
 
-NOTIFICAÇÃO FISCAL
+IDENTIFICACAO DA AUTORIDADE
+${params.autoridade || autoridadePadrao}
+Domicilio Tributario Eletronico do Simples Nacional (DTE-SN)
 
-A Secretaria Municipal de Fazenda, por meio deste Domicílio Tributário Eletrônico (DTE-SN), 
-vem NOTIFICAR Vossa Senhoria sobre:
+TEXTO DA COBRANCA / NOTIFICACAO
+Fica NOTIFICADO(A) para regularizar as pendencias referentes a ${params.assunto || 'obrigacoes fiscais do Simples Nacional'}.
+Descricao: ${params.descricao || 'Pendencia identificada em cruzamentos fiscais municipais.'}
 
-TIPO: ${params.tipo}
+BASE LEGAL
+- Lei Complementar 123/2006
+- Codigo Tributario Municipal
+${params.baseLegalExtra ? `- ${params.baseLegalExtra}` : ''}
 
-DESCRIÇÃO:
-${params.descricao}
+PRAZO PARA MANIFESTACAO
+${params.prazo || '10 (dez) dias corridos a contar do recebimento neste DTE-SN.'}
 
-${params.valor ? `VALOR APURADO: R$ ${params.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : ''}
+DATA DE EMISSAO
+${formatDateBR(params.dataEmissao)}
 
-${params.prazo ? `PRAZO PARA MANIFESTAÇÃO: ${params.prazo}` : ''}
-
-FUNDAMENTO LEGAL:
-- Lei Complementar nº 123/2006 (Estatuto Nacional da Microempresa e da Empresa de Pequeno Porte)
-- Lei Municipal de Fiscalização Tributária
-
-Esta notificação substitui a notificação postal, conforme previsto na legislação municipal.
-O contribuinte poderá apresentar defesa ou impugnação através do sistema eletrônico.
+BLOCO FINAL PADRONIZADO
+O NAO ATENDIMENTO IMPLICARA NA CONTINUIDADE DO PROCEDIMENTO FISCAL, PODENDO RESULTAR NA LAVRATURA DE AUTO DE INFRACAO E INSCRICAO EM DIVIDA ATIVA, CONFORME LEGISLACAO VIGENTE.
 
 Atenciosamente,
-Secretaria Municipal de Fazenda
+${params.autoridade || autoridadePadrao}
     `.trim()
   },
 
   intimacao: {
-    subject: (params: { numero: string }) => `Intimação Fiscal nº ${params.numero}`,
-    body: (params: {
-      empresaNome: string
-      cnpj: string
-      numero: string
-      motivo: string
-      documentos: string[]
-      prazo: string
-      local: string
-    }) => `
-Prezado(a) ${params.empresaNome},
+    subject: (params: { numero?: string }) => `Intimacao Fiscal ${params.numero ? `- ${params.numero}` : ''}`.trim(),
+    body: (params: BaseParams & { numero?: string; motivo?: string; documentos?: string[]; local?: string }) => `
+PREZADO(A) CONTRIBUINTE,
+
+IDENTIFICACAO DO CONTRIBUINTE
+Razao Social: ${params.empresaNome}
 CNPJ: ${params.cnpj}
 
-INTIMAÇÃO FISCAL Nº ${params.numero}
+IDENTIFICACAO DA AUTORIDADE
+${params.autoridade || autoridadePadrao}
+Domicilio Tributario Eletronico do Simples Nacional (DTE-SN)
 
-A Secretaria Municipal de Fazenda, no uso de suas atribuições legais, 
-vem INTIMAR Vossa Senhoria para:
+TEXTO DA INTIMACAO
+Fica INTIMADO(A) para apresentar os documentos abaixo, relativos a ${params.motivo || 'verificacao fiscal'}:
+${(params.documentos || ['Documentos contabeis e fiscais do periodo sob analise']).map((doc, i) => `${i + 1}. ${doc}`).join('\n')}
 
-MOTIVO: ${params.motivo}
+LOCAL DE ENTREGA / ENVIO
+${params.local || 'Envio digital via sistema DTE-SN ou entrega presencial na Secretaria Municipal de Fazenda.'}
 
-DOCUMENTOS A APRESENTAR:
-${params.documentos.map((doc, i) => `${i + 1}. ${doc}`).join('\n')}
+BASE LEGAL
+- Lei Complementar 123/2006
+- Codigo Tributario Municipal
+${params.baseLegalExtra ? `- ${params.baseLegalExtra}` : ''}
 
-PRAZO: ${params.prazo}
+PRAZO PARA CUMPRIMENTO
+${params.prazo || '10 (dez) dias corridos a contar do recebimento neste DTE-SN.'}
 
-LOCAL DE APRESENTAÇÃO: ${params.local}
+DATA DE EMISSAO
+${formatDateBR(params.dataEmissao)}
 
-OBSERVAÇÕES:
-- A não apresentação dos documentos no prazo estabelecido poderá acarretar em autuação fiscal.
-- Os documentos podem ser enviados digitalmente através do sistema.
-- O prazo começa a contar a partir da data de leitura desta intimação.
-
-FUNDAMENTO LEGAL:
-- Código Tributário Municipal
-- Lei Complementar nº 123/2006
-
-Atenciosamente,
-Secretaria Municipal de Fazenda
-    `.trim()
-  },
-
-  aviso: {
-    subject: (params: { assunto: string }) => `Aviso - ${params.assunto}`,
-    body: (params: {
-      empresaNome: string
-      cnpj: string
-      assunto: string
-      mensagem: string
-      prazo?: string
-    }) => `
-Prezado(a) ${params.empresaNome},
-CNPJ: ${params.cnpj}
-
-AVISO FISCAL
-
-Assunto: ${params.assunto}
-
-${params.mensagem}
-
-${params.prazo ? `\nPrazo: ${params.prazo}` : ''}
-
-Esta é uma comunicação informativa da Secretaria Municipal de Fazenda através do 
-Domicílio Tributário Eletrônico (DTE-SN).
+BLOCO FINAL PADRONIZADO
+O NAO ATENDIMENTO NO PRAZO IMPLICARA NA AUTUACAO FISCAL E EM OUTRAS MEDIDAS CABIVEIS, CONFORME LEGISLACAO MUNICIPAL APLICAVEL.
 
 Atenciosamente,
-Secretaria Municipal de Fazenda
+${params.autoridade || autoridadePadrao}
     `.trim()
   },
 
   autoInfracao: {
-    subject: (params: { numero: string }) => `Auto de Infração nº ${params.numero}`,
-    body: (params: {
-      empresaNome: string
-      cnpj: string
-      numero: string
-      infracao: string
-      baseCalcular: number
-      multa: number
-      juros: number
-      total: number
-      prazo: string
+    subject: (params: { numero?: string }) => `Auto de Infracao ${params.numero ? `- ${params.numero}` : ''}`.trim(),
+    body: (params: BaseParams & {
+      numero?: string
+      infracao?: string
+      baseCalcular?: number
+      multa?: number
+      juros?: number
+      total?: number
     }) => `
-Prezado(a) ${params.empresaNome},
+PREZADO(A) CONTRIBUINTE,
+
+IDENTIFICACAO DO CONTRIBUINTE
+Razao Social: ${params.empresaNome}
 CNPJ: ${params.cnpj}
 
-AUTO DE INFRAÇÃO E IMPOSIÇÃO DE MULTA Nº ${params.numero}
+IDENTIFICACAO DA AUTORIDADE
+${params.autoridade || autoridadePadrao}
+Domicilio Tributario Eletronico do Simples Nacional (DTE-SN)
 
-A Secretaria Municipal de Fazenda, com base no poder de polícia administrativa,
-LAVRA o presente Auto de Infração pelos seguintes fatos:
+TEXTO DO AUTO DE INFRACAO
+Fica lavrado o AUTO DE INFRACAO ${params.numero || ''} pelos seguintes fatos:
+${params.infracao || 'Descumprimento de obrigacao tributaria principal ou acessoria apurada em fiscalizacao municipal.'}
 
-INFRAÇÃO CONSTATADA:
-${params.infracao}
+VALORES APURADOS
+Base de Calculo: ${params.baseCalcular !== undefined ? `R$ ${params.baseCalcular.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'A apurar'}
+Multa: ${params.multa !== undefined ? `R$ ${params.multa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'A apurar'}
+Juros: ${params.juros !== undefined ? `R$ ${params.juros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'A apurar'}
+Total: ${params.total !== undefined ? `R$ ${params.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'A apurar'}
 
-VALORES:
-Base de Cálculo: R$ ${params.baseCalcular.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-Multa Aplicada: R$ ${params.multa.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-Juros: R$ ${params.juros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-TOTAL: R$ ${params.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+BASE LEGAL
+- Lei Complementar 123/2006
+- Codigo Tributario Municipal
+${params.baseLegalExtra ? `- ${params.baseLegalExtra}` : ''}
 
-PRAZO PARA DEFESA: ${params.prazo}
+PRAZO PARA DEFESA
+${params.prazo || '10 (dez) dias corridos a contar do recebimento neste DTE-SN.'}
 
-DIREITOS DO AUTUADO:
-- Apresentar defesa ou impugnação no prazo estabelecido
-- Requerer parcelamento do débito
-- Solicitar revisão administrativa
+DATA DE EMISSAO
+${formatDateBR(params.dataEmissao)}
 
-O não pagamento ou não apresentação de defesa implicará em inscrição em dívida ativa 
-e execução fiscal.
-
-FUNDAMENTO LEGAL:
-- Código Tributário Municipal
-- Lei Complementar nº 123/2006
+BLOCO FINAL PADRONIZADO
+O NAO PAGAMENTO OU NAO APRESENTACAO DE DEFESA IMPLICARA NA INSCRICAO EM DIVIDA ATIVA E NA COBRANCA JUDICIAL, SEM PREJUIZO DAS DEMAIS MEDIDAS CABIVEIS.
 
 Atenciosamente,
-Secretaria Municipal de Fazenda
+${params.autoridade || autoridadePadrao}
+    `.trim()
+  },
+
+  aviso: {
+    subject: (params: { assunto?: string }) => `Aviso Fiscal - ${params.assunto || 'Comunicado'}`,
+    body: (params: BaseParams & { assunto?: string; mensagem?: string }) => `
+PREZADO(A) CONTRIBUINTE,
+
+IDENTIFICACAO DO CONTRIBUINTE
+Razao Social: ${params.empresaNome}
+CNPJ: ${params.cnpj}
+
+IDENTIFICACAO DA AUTORIDADE
+${params.autoridade || autoridadePadrao}
+Domicilio Tributario Eletronico do Simples Nacional (DTE-SN)
+
+TEXTO DO AVISO
+${params.mensagem || `Comunicamos sobre ${params.assunto || 'obrigações fiscais do Simples Nacional'}.`}
+
+BASE LEGAL
+- Lei Complementar 123/2006
+- Codigo Tributario Municipal
+${params.baseLegalExtra ? `- ${params.baseLegalExtra}` : ''}
+
+PRAZO (SE APLICAVEL)
+${params.prazo || 'Prazo informado na mensagem ou conforme obrigacao especifica.'}
+
+DATA DE EMISSAO
+${formatDateBR(params.dataEmissao)}
+
+BLOCO FINAL PADRONIZADO
+Esta comunicacao e realizada pelo DTE-SN e considera-se recebida na data de leitura pelo contribuinte ou apos decurso do prazo legal.
+
+Atenciosamente,
+${params.autoridade || autoridadePadrao}
     `.trim()
   },
 
   lembrete: {
-    subject: () => 'Lembrete - Obrigações Fiscais',
-    body: (params: {
-      empresaNome: string
-      cnpj: string
-      obrigacoes: Array<{ nome: string; vencimento: string }>
-    }) => `
-Prezado(a) ${params.empresaNome},
+    subject: (params: { assunto?: string }) => `Lembrete Fiscal - ${params.assunto || 'Obrigacoes'}`,
+    body: (params: BaseParams & { obrigacoes?: Array<{ nome: string; vencimento: string }> }) => `
+PREZADO(A) CONTRIBUINTE,
+
+IDENTIFICACAO DO CONTRIBUINTE
+Razao Social: ${params.empresaNome}
 CNPJ: ${params.cnpj}
 
-LEMBRETE DE OBRIGAÇÕES FISCAIS
+IDENTIFICACAO DA AUTORIDADE
+${params.autoridade || autoridadePadrao}
+Domicilio Tributario Eletronico do Simples Nacional (DTE-SN)
 
-Este é um lembrete automático sobre suas próximas obrigações fiscais:
+TEXTO DO LEMBRETE
+Lembramos das seguintes obrigacoes e prazos:
+${(params.obrigacoes || [{ nome: 'Entrega de declaracoes e comprovantes', vencimento: 'Verifique o calendario oficial' }]).map((obr, i) => `${i + 1}. ${obr.nome} - Vencimento: ${obr.vencimento}`).join('\n')}
 
-${params.obrigacoes.map((obr, i) => `${i + 1}. ${obr.nome} - Vencimento: ${obr.vencimento}`).join('\n')}
+BASE LEGAL
+- Lei Complementar 123/2006
+- Codigo Tributario Municipal
+${params.baseLegalExtra ? `- ${params.baseLegalExtra}` : ''}
 
-Certifique-se de cumprir todas as obrigações dentro dos prazos estabelecidos.
+PRAZO
+${params.prazo || 'Conforme datas listadas acima.'}
 
-Este é um aviso automático do sistema DTE-SN.
+DATA DE EMISSAO
+${formatDateBR(params.dataEmissao)}
+
+BLOCO FINAL PADRONIZADO
+Este lembrete e informativo e foi enviado pelo DTE-SN. O nao cumprimento dos prazos pode gerar penalidades previstas na legislacao municipal.
 
 Atenciosamente,
-Secretaria Municipal de Fazenda
+${params.autoridade || autoridadePadrao}
     `.trim()
   }
 }
