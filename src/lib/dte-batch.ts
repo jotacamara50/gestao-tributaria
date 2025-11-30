@@ -17,9 +17,16 @@ const codigoPorTipo: Record<string, string> = {
     lembrete: '0032'
 }
 
-function pad(value: string, size: number, filler = ' ') {
-    if (value.length >= size) return value.slice(0, size)
-    return value + filler.repeat(size - value.length)
+function padExact(value: string, size: number, filler = ' ') {
+    const len = Buffer.from(value, 'ascii').length
+    if (len >= size) return value.slice(0, size)
+    return value + filler.repeat(size - len)
+}
+
+function padLeft(value: string, size: number, filler = '0') {
+    const len = Buffer.from(value, 'ascii').length
+    if (len >= size) return value.slice(len - size)
+    return filler.repeat(size - len) + value
 }
 
 function sanitizeContent(text: string) {
@@ -28,34 +35,35 @@ function sanitizeContent(text: string) {
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '') // remove acentos
         .replace(/[^\x20-\x7E]/g, '') // limita a ASCII imprimivel
+        .toUpperCase()
+        .replace(/[^A-Z0-9 ]/g, ' ') // remove pontuacao e caracteres especiais
         .replace(/\s+/g, ' ') // colapsa espacos
         .trim()
-        .toUpperCase()
     return normalized
 }
 
 const LINE_SIZE = 100
 
 function buildHeader(date: Date, total: number) {
-    const base = `HDRDTE${format(date, 'yyyyMMdd')}${pad(total.toString(), 5, '0')}`
-    return pad(base, LINE_SIZE, ' ')
+    const base = `HDRDTE${format(date, 'yyyyMMdd')}${padLeft(total.toString(), 5, '0')}`
+    return padExact(base, LINE_SIZE, ' ')
 }
 
 function buildTrailer(total: number) {
-    const base = `TRAILER${pad(total.toString(), 7, '0')}`
-    return pad(base, LINE_SIZE, ' ')
+    const base = `TRAILER${padLeft(total.toString(), 7, '0')}`
+    return padExact(base, LINE_SIZE, ' ')
 }
 
 export class DTELayoutGenerator {
     static buildRegistro(message: DTEMessageRecord) {
         // Layout posicional oficial DTE-SN (linha por mensagem):
         // codigoMensagem(4) + cnpj(14) + dataEnvio(8 AAAAMMDD) + conteudo(74)
-        const codigo = pad(message.codigo, 4, '0')
-        const cnpj = pad(message.cnpj.replace(/\D/g, ''), 14, '0')
+        const codigo = padExact(message.codigo, 4, '0')
+        const cnpj = padExact(message.cnpj.replace(/\D/g, ''), 14, '0')
         const data = format(message.sentAt, 'yyyyMMdd')
-        const conteudo = pad(sanitizeContent(message.content), 74, ' ')
+        const conteudo = padExact(sanitizeContent(message.content), 74, ' ')
         const base = `${codigo}${cnpj}${data}${conteudo}`
-        return pad(base, LINE_SIZE, ' ')
+        return padExact(base, LINE_SIZE, ' ')
     }
 }
 

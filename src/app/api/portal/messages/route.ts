@@ -6,6 +6,11 @@ function cleanCnpj(raw: string) {
     return (raw || '').replace(/\D/g, '')
 }
 
+function maskCnpj(digits: string) {
+    if (digits.length !== 14) return digits
+    return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`
+}
+
 export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const cnpj = cleanCnpj(searchParams.get('cnpj') || '')
@@ -14,8 +19,15 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'CNPJ invalido' }, { status: 400 })
     }
 
+    const masked = maskCnpj(cnpj)
+
     const company = await prisma.company.findFirst({
-        where: { cnpj: { contains: cnpj } }
+        where: {
+            OR: [
+                { cnpj: cnpj },
+                { cnpj: masked }
+            ]
+        }
     })
 
     if (!company) {

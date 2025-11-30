@@ -158,20 +158,6 @@ export default function DTEPage() {
         }
     }
 
-    async function marcarComoLida(messageId: string) {
-        try {
-            const response = await fetch(`/api/dte/${messageId}/read`, {
-                method: 'PATCH'
-            })
-
-            if (response.ok) {
-                carregarDados()
-            }
-        } catch (error) {
-            console.error('Erro ao marcar como lida:', error)
-        }
-    }
-
     async function exportarLote(formato: 'txt' | 'xml' = 'txt') {
         try {
             setExportando(true)
@@ -285,6 +271,9 @@ export default function DTEPage() {
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={carregarDados} disabled={loading || exportando}>
+                        Atualizar status
+                    </Button>
                     <Button variant="outline" onClick={() => exportarLote('txt')} disabled={exportando}>
                         <Download className="w-4 h-4 mr-2" />
                         Exportar Lote TXT
@@ -522,11 +511,6 @@ export default function DTEPage() {
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
-                                                        onClick={() => {
-                                                            if (!message.readAt) {
-                                                                marcarComoLida(message.id)
-                                                            }
-                                                        }}
                                                     >
                                                         <Eye className="w-4 h-4" />
                                                     </Button>
