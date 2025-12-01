@@ -212,6 +212,9 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const anos = Number(searchParams.get('anos') || '5')
+    const filtroCnpj = (searchParams.get('cnpj') || '').replace(/\D/g, '')
+    const filtroCompetencia = searchParams.get('competencia') || undefined
+    const format = (searchParams.get('format') || '').toLowerCase()
     const meses = Math.max(12, Math.min(anos * 12, 60))
     const comps = competenciasUltimosMeses(meses)
     const inicio = new Date(comps[0] + '-01')
@@ -270,6 +273,7 @@ export async function GET(request: NextRequest) {
 
     const nfseMap = new Map<string, Record<string, number>>()
     const nfseCountMap = new Map<string, Record<string, number>>()
+    const nfseMunicipioMap = new Map<string, Record<string, { fora: number; foraDetalhes: Record<string, number>; deFora: number; deForaDetalhes: Record<string, number> }>>()
   const declListMap = new Map<string, Record<string, { revenues: number[]; taxes: number[] }>>()
   invoices.forEach((n) => {
       const comp = compFromDate(n.issueDate)
@@ -303,6 +307,27 @@ export async function GET(request: NextRequest) {
       atualTomador.qtd += 1
       atualTomador.base += n.value
       nfseTomadorMap.set(keyTomador, atualTomador)
+
+      // Município de prestação/tomador para receitas fora/de fora
+      const seat = settings?.cityName?.toLowerCase()
+      if (seat) {
+        const mapa = nfseMunicipioMap.get(n.companyId) || {}
+        const entry = mapa[comp] || { fora: 0, foraDetalhes: {}, deFora: 0, deForaDetalhes: {} }
+        const municipioPrestacao = (n.municipioPrestacao || '').toLowerCase()
+        const municipioTomador = (n.municipioTomador || '').toLowerCase()
+
+        if (municipioPrestacao && municipioPrestacao !== seat) {
+          entry.fora += n.value
+          entry.foraDetalhes[municipioPrestacao] = (entry.foraDetalhes[municipioPrestacao] || 0) + n.value
+        }
+        if (municipioPrestacao === seat && municipioTomador && municipioTomador !== seat) {
+          entry.deFora += n.value
+          entry.deForaDetalhes[municipioTomador] = (entry.deForaDetalhes[municipioTomador] || 0) + n.value
+        }
+
+        mapa[comp] = entry
+        nfseMunicipioMap.set(n.companyId, mapa)
+      }
   })
   declarations.forEach((d) => {
     const comp = compFromPeriod(d.period)
@@ -424,6 +449,7 @@ export async function GET(request: NextRequest) {
       const declDetalhe = declListMap.get(c.id) || {}
       const nfse = nfseMap.get(c.id) || {}
       const nfseCount = nfseCountMap.get(c.id) || {}
+      const nfseMunicipios = nfseMunicipioMap.get(c.id) || {}
       const repassesEmpresa = repasseMap.get(c.cnpj.replace(/\D/g, '')) || {}
 
       const compsOmissos: string[] = []
@@ -621,6 +647,33 @@ export async function GET(request: NextRequest) {
             municipio: info.municipio,
           })
         }
+
+        // NFSe fora/de fora (municipio de prestacao/tomador)
+        const muniInfo = nfseMunicipios[comp]
+        if (muniInfo?.fora > 0 && settings?.cityName) {
+          const municipioDestino = Object.entries(muniInfo.foraDetalhes).sort((a, b) => b[1] - a[1])[0]?.[0]
+          receitasOutroMunicipio.push({
+            companyId: c.id,
+            cnpj: c.cnpj,
+            name: c.name,
+            competencia: comp,
+            tipo: 'para_fora',
+            base: muniInfo.fora,
+            municipio: municipioDestino || undefined,
+          })
+        }
+        if (muniInfo?.deFora > 0 && settings?.cityName) {
+          const municipioOrigem = Object.entries(muniInfo.deForaDetalhes).sort((a, b) => b[1] - a[1])[0]?.[0]
+          receitasOutroMunicipio.push({
+            companyId: c.id,
+            cnpj: c.cnpj,
+            name: c.name,
+            competencia: comp,
+            tipo: 'de_fora',
+            base: muniInfo.deFora,
+            municipio: municipioOrigem || undefined,
+          })
+        }
       })
 
       // faturamento 12m para sublimite/limite por empresa
@@ -674,17 +727,23 @@ export async function GET(request: NextRequest) {
       })
     })
 
-    return NextResponse.json({
+    // Filtro opcional por CNPJ e competência
+    const filtrarPorCnpj = <T extends { cnpj?: string }>(lista: T[] | undefined) =>
+      filtroCnpj ? (lista || []).filter((item) => (item.cnpj || '').replace(/\D/g, '').includes(filtroCnpj)) : lista
+    const filtrarPorComp = <T extends { competencia?: string }>(lista: T[] | undefined) =>
+      filtroCompetencia ? (lista || []).filter((item) => item.competencia === filtroCompetencia) : lista
+
+    const resp = {
       periodo: { inicio, competencias: comps, anos, meses },
-      omissos,
-      semMovimento,
-      divergenciasBase: divergencias,
-      sublimite36: sublimite,
-      limite48: limite,
-      retencao,
-      isencaoIrregular,
-      outroMunicipio,
-      inadimplentes,
+      omissos: filtrarPorCnpj(omissos),
+      semMovimento: filtrarPorCnpj(semMovimento),
+      divergenciasBase: filtrarPorComp(filtrarPorCnpj(divergencias)),
+      sublimite36: filtrarPorCnpj(sublimite),
+      limite48: filtrarPorCnpj(limite),
+      retencao: filtrarPorComp(filtrarPorCnpj(retencao)),
+      isencaoIrregular: filtrarPorComp(filtrarPorCnpj(isencaoIrregular)),
+      outroMunicipio: filtrarPorComp(filtrarPorCnpj(outroMunicipio)),
+      inadimplentes: filtrarPorComp(filtrarPorCnpj(inadimplentes)),
       repassesSerie: comps.map<RepasseSerie>((c) => ({
         competencia: c,
         valor: repasseSerie[c] || 0,
@@ -704,8 +763,8 @@ export async function GET(request: NextRequest) {
       })),
       repassesFaixa: Object.entries(repasseFaixa).map(([faixa, valor]) => ({ faixa, valor })),
       repassesOrigem: Object.entries(repasseOrigem).map(([origem, valor]) => ({ origem, valor })),
-      declararamSemNFSe,
-      declararamComNFSe,
+      declararamSemNFSe: filtrarPorComp(filtrarPorCnpj(declararamSemNFSe)),
+      declararamComNFSe: filtrarPorComp(filtrarPorCnpj(declararamComNFSe)),
       nfsePorItem: Array.from(nfsePorItemMap.values()).map(i => ({
         competencia: i.comp,
         itemServico: i.item,
@@ -713,15 +772,54 @@ export async function GET(request: NextRequest) {
         baseCalculo: i.base,
         issEstimado: i.iss,
       })),
-      retificacoesMenor: retificacoesMenor.sort((a, b) => a.diferencaReceita - b.diferencaReceita),
-      suspensoesParcelamento,
-      dasdOmissos,
-      dasdDeclarouNFSe,
-      dasdDeclarouSemNFSe,
-      atividadesContabeis,
-      regimesEspeciais,
-      receitasOutroMunicipio,
-    })
+      retificacoesMenor: filtrarPorComp(filtrarPorCnpj(retificacoesMenor.sort((a, b) => a.diferencaReceita - b.diferencaReceita))),
+      suspensoesParcelamento: filtrarPorComp(filtrarPorCnpj(suspensoesParcelamento)),
+      dasdOmissos: filtrarPorComp(filtrarPorCnpj(dasdOmissos)),
+      dasdDeclarouNFSe: filtrarPorComp(filtrarPorCnpj(dasdDeclarouNFSe)),
+      dasdDeclarouSemNFSe: filtrarPorComp(filtrarPorCnpj(dasdDeclarouSemNFSe)),
+      atividadesContabeis: filtrarPorComp(filtrarPorCnpj(atividadesContabeis)),
+      regimesEspeciais: filtrarPorComp(filtrarPorCnpj(regimesEspeciais)),
+      receitasOutroMunicipio: filtrarPorComp(filtrarPorCnpj(receitasOutroMunicipio)),
+    }
+
+    if (format === 'csv') {
+      const rows: string[] = []
+      rows.push('tipo,cnpj,nome,competencia,valor,detalhe')
+      const pushLista = (tipo: string, lista: any[] | undefined, valorKey?: string, detalhe?: (item: any) => string) => {
+        (lista || []).forEach((item) => {
+          const val = valorKey ? item[valorKey] : item.diferenca || item.valor || ''
+          rows.push([
+            tipo,
+            `"${item.cnpj || ''}"`,
+            `"${(item.name || '').replace(/"/g, '""')}"`,
+            item.competencia || '',
+            val ?? '',
+            detalhe ? `"${(detalhe(item) || '').replace(/"/g, '""')}"` : ''
+          ].join(','))
+        })
+      }
+
+      pushLista('omisso_pgdas', resp.omissos, undefined, (i) => (i.competencias || []).join('|'))
+      pushLista('divergencia_pgdas_nfse', resp.divergenciasBase, 'diferenca')
+      pushLista('retencao_iss', resp.retencao, 'diferenca')
+      pushLista('inadimplente', resp.inadimplentes, 'diferenca', (i) => `devido:${i.devido}|pago:${i.pago}`)
+      pushLista('dasd_omisso', resp.dasdOmissos, 'nfseBase', (i) => `nfseQtd:${i.nfseQuantidade}`)
+      pushLista('dasd_entregou_nfse', resp.dasdDeclarouNFSe, 'nfseBase', (i) => `nfseQtd:${i.nfseQuantidade}`)
+      pushLista('dasd_entregou_sem_nfse', resp.dasdDeclarouSemNFSe, 'nfseBase', (i) => `nfseQtd:${i.nfseQuantidade}`)
+      pushLista('receita_para_fora', resp.receitasOutroMunicipio?.filter((r) => r.tipo === 'para_fora'), 'base', (i) => `mun:${i.municipio || ''}`)
+      pushLista('receita_de_fora', resp.receitasOutroMunicipio?.filter((r) => r.tipo === 'de_fora'), 'base', (i) => `mun:${i.municipio || ''}`)
+      pushLista('retificacao_menor', resp.retificacoesMenor, 'diferencaReceita', (i) => `imp:${i.diferencaImposto}`)
+
+      return new NextResponse(rows.join('\n'), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="cruzamentos-sn.csv"'
+        }
+      })
+    }
+
+    return NextResponse.json(resp)
   } catch (error) {
     console.error('Erro nos cruzamentos SN:', error)
     return NextResponse.json({ error: 'Erro nos cruzamentos SN' }, { status: 500 })

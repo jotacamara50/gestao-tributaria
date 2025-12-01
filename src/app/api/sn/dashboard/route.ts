@@ -55,6 +55,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const anos = Number(searchParams.get('anos') || '5')
+    const filtroCnpj = (searchParams.get('cnpj') || '').replace(/\D/g, '')
+    const format = (searchParams.get('format') || '').toLowerCase()
     const meses = Math.max(12, Math.min(anos * 12, 60))
     const comps = competenciasUltimosMeses(meses)
     const inicioDate = new Date(comps[0] + '-01')
@@ -82,7 +84,13 @@ export async function GET(request: NextRequest) {
       }),
     ])
 
-    const totalEmpresas = companies.length
+    const allowedCompanyIds = new Set(
+      companies
+        .filter((c) => !filtroCnpj || (c.cnpj || '').replace(/\D/g, '').includes(filtroCnpj))
+        .map((c) => c.id)
+    )
+
+    const totalEmpresas = filtroCnpj ? allowedCompanyIds.size : companies.length
     const meiIds = new Set(
       companies
         .filter(
@@ -90,21 +98,22 @@ export async function GET(request: NextRequest) {
             c.regime?.toLowerCase().includes('mei') ||
             c.enquadramentoHistory.some((e) => e.isMei)
         )
+        .filter((c) => allowedCompanyIds.has(c.id))
         .map((c) => c.id)
     )
 
     const entregasPorComp = somarPorCompetencia(
-      declarations,
+      declarations.filter((d) => allowedCompanyIds.has(d.companyId)),
       (d) => compFromPeriod(d.period),
       () => 1
     )
     const arrecadacaoPrev = somarPorCompetencia(
-      declarations,
+      declarations.filter((d) => allowedCompanyIds.has(d.companyId)),
       (d) => compFromPeriod(d.period),
       (d) => d.taxDue
     )
     const arrecadacaoReceita = somarPorCompetencia(
-      declarations,
+      declarations.filter((d) => allowedCompanyIds.has(d.companyId)),
       (d) => compFromPeriod(d.period),
       (d) => d.revenue
     )
@@ -114,12 +123,12 @@ export async function GET(request: NextRequest) {
       () => 1
     )
     const nfsePorComp = somarPorCompetencia(
-      invoices,
+      invoices.filter((n) => allowedCompanyIds.has(n.companyId)),
       (n) => compFromDate(n.issueDate),
       (n) => n.value
     )
     const guiasPagasPorComp = somarPorCompetencia(
-      guias,
+      guias.filter((g) => allowedCompanyIds.has(g.companyId)),
       (g) => {
         const d = g.pagoEm || g.dataEmissao
         if (!d) return null
@@ -128,7 +137,7 @@ export async function GET(request: NextRequest) {
       (g) => g.valorPago ?? g.valorTotal
     )
     const issGuiasPorComp = somarPorCompetencia(
-      guias,
+      guias.filter((g) => allowedCompanyIds.has(g.companyId)),
       (g) => compFromDate(g.dataEmissao),
       (g) =>
         g.tributos
@@ -159,8 +168,9 @@ export async function GET(request: NextRequest) {
       inadimplenciaValorPorComp[c] = Math.max(previsto - pago, 0)
     })
 
-    const parcelamentosAtivos = parc.filter((p) => p.parcelamento.situacao?.toLowerCase() === 'ativo')
-    const parcelasAtraso = parc.filter(
+    const parcFiltradas = parc.filter((p) => allowedCompanyIds.has(p.parcelamento.companyId))
+    const parcelamentosAtivos = parcFiltradas.filter((p) => p.parcelamento.situacao?.toLowerCase() === 'ativo')
+    const parcelasAtraso = parcFiltradas.filter(
       (p) => p.vencimento < new Date() && p.situacao.toLowerCase() !== 'paga'
     )
     const valorAtraso = parcelasAtraso.reduce((s, p) => s + (p.valor - (p.valorPago || 0)), 0)
@@ -171,7 +181,7 @@ export async function GET(request: NextRequest) {
     const atrasosPorComp: Record<string, number> = {}
     const valorAtrasoPorComp: Record<string, number> = {}
     const valorAbertoPorComp: Record<string, number> = {}
-    parc.forEach((p) => {
+    parcFiltradas.forEach((p) => {
       const comp = compFromDate(p.vencimento)
       const isPaga = p.situacao.toLowerCase() === 'paga'
       const isAtraso = p.vencimento < new Date() && !isPaga
@@ -260,6 +270,30 @@ export async function GET(request: NextRequest) {
     }
     if (inadimplenciaPeriodo > 0) {
       alertas.push('Pagamentos identificados (guias + DAF607) abaixo do devido. Verificar inadimplencia.')
+    }
+
+    if (format === 'csv') {
+      const rows: string[] = []
+      rows.push('tipo,competencia,valor')
+      serieSN.forEach((s) => rows.push(['arrecadacao_prevista', s.competencia, s.valor].join(',')))
+      serieReceita.forEach((s) => rows.push(['receita_declarada', s.competencia, s.valor].join(',')))
+      serieNFSe.forEach((s) => rows.push(['nfse', s.competencia, s.valor].join(',')))
+      serieISS.forEach((s) => rows.push(['iss_guias', s.competencia, s.valor].join(',')))
+      serieRepasses.forEach((s) => rows.push(['repasses', s.competencia, s.valor].join(',')))
+      serieEntregas.forEach((s) => rows.push(['entregas_pgdas', s.competencia, s.valor].join(',')))
+      serieOmissos.forEach((s) => rows.push(['omissos_pgdas', s.competencia, s.valor].join(',')))
+      serieOmissosMei.forEach((s) => rows.push(['omissos_mei', s.competencia, s.valor].join(',')))
+      serieInadimplencia.forEach((s) => rows.push(['inadimplencia', s.competencia, s.valor].join(',')))
+      serieParcelasAtraso.forEach((s) => rows.push(['parcelas_atraso', s.competencia, s.valor].join(',')))
+      serieValorAtraso.forEach((s) => rows.push(['valor_atraso_parcelas', s.competencia, s.valor].join(',')))
+      serieValorAberto.forEach((s) => rows.push(['valor_aberto_parcelas', s.competencia, s.valor].join(',')))
+      return new NextResponse(rows.join('\n'), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="dashboard-sn.csv"'
+        }
+      })
     }
 
     return NextResponse.json({

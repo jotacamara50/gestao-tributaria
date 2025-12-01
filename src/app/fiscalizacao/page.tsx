@@ -164,9 +164,9 @@ export default function FiscalizacaoPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-3">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Workflow de Fiscalizacao</h2>
+          <h2 className="text-3xl font-bold tracking-tight">Ações de Fiscalização</h2>
           <p className="text-muted-foreground">
-            Registre acoes fiscais, anexe documentos, mantenha historico por CNPJ e emita relatorio individual.
+            Registre ações fiscais, anexe documentos, mantenha histórico por CNPJ e emita relatório individual.
           </p>
         </div>
         <Button variant="outline" size="icon" onClick={loadActions} disabled={loading}>

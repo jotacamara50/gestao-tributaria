@@ -38,9 +38,13 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const anos = Number(searchParams.get('anos') || '5')
+    const filtroCnpj = (searchParams.get('cnpj') || '').replace(/\D/g, '')
+    const filtroCompetencia = searchParams.get('competencia') || undefined
+    const format = (searchParams.get('format') || '').toLowerCase()
     const meses = Math.max(12, Math.min(anos * 12, 60))
     const comps = competenciasUltimosMeses(meses)
     const inicio = new Date(comps[0] + '-01')
+    const compsFiltradas = filtroCompetencia ? [filtroCompetencia] : comps
 
     const companies = await prisma.company.findMany({
       select: { id: true, cnpj: true, name: true, regime: true, enquadramentoHistory: true },
@@ -48,7 +52,12 @@ export async function GET(request: NextRequest) {
 
     const meiIds = new Set(
       companies
-        .filter((c) => c.regime?.toLowerCase().includes('mei') || c.enquadramentoHistory.some((e) => e.isMei))
+        .filter((c) => {
+          const isMei = c.regime?.toLowerCase().includes('mei') || c.enquadramentoHistory.some((e) => e.isMei)
+          if (!isMei) return false
+          if (filtroCnpj && !(c.cnpj || '').replace(/\D/g, '').includes(filtroCnpj)) return false
+          return true
+        })
         .map((c) => c.id)
     )
 
@@ -71,33 +80,36 @@ export async function GET(request: NextRequest) {
     declarations.forEach((d) => {
       const comp = compFromPeriod(d.period)
       if (!comp) return
+      if (filtroCompetencia && comp !== filtroCompetencia) return
       entregasPorComp[comp] = (entregasPorComp[comp] || 0) + 1
     })
 
     const nfsePorComp: Record<string, number> = {}
     invoices.forEach((n) => {
       const comp = compFromDate(n.issueDate)
+      if (filtroCompetencia && comp !== filtroCompetencia) return
       nfsePorComp[comp] = (nfsePorComp[comp] || 0) + n.value
     })
     const pagosPorComp: Record<string, number> = {}
     guias.forEach((g) => {
       if (!g.pagoEm) return
       const comp = compFromDate(g.pagoEm)
+      if (filtroCompetencia && comp !== filtroCompetencia) return
       pagosPorComp[comp] = (pagosPorComp[comp] || 0) + (g.valorPago ?? g.valorTotal ?? 0)
     })
 
     const omissosPorComp: Record<string, number> = {}
-    comps.forEach((comp) => {
+    compsFiltradas.forEach((comp) => {
       const entregues = entregasPorComp[comp] || 0
       omissosPorComp[comp] = Math.max(meiIds.size - entregues, 0)
     })
 
-    const serieEntregas: SerieNumero[] = comps.map((c) => ({ competencia: c, valor: entregasPorComp[c] || 0 }))
-    const serieOmissos: SerieNumero[] = comps.map((c) => ({ competencia: c, valor: omissosPorComp[c] || 0 }))
-    const serieNFSe: SerieNumero[] = comps.map((c) => ({ competencia: c, valor: nfsePorComp[c] || 0 }))
-    const seriePagos: SerieNumero[] = comps.map((c) => ({ competencia: c, valor: pagosPorComp[c] || 0 }))
+    const serieEntregas: SerieNumero[] = compsFiltradas.map((c) => ({ competencia: c, valor: entregasPorComp[c] || 0 }))
+    const serieOmissos: SerieNumero[] = compsFiltradas.map((c) => ({ competencia: c, valor: omissosPorComp[c] || 0 }))
+    const serieNFSe: SerieNumero[] = compsFiltradas.map((c) => ({ competencia: c, valor: nfsePorComp[c] || 0 }))
+    const seriePagos: SerieNumero[] = compsFiltradas.map((c) => ({ competencia: c, valor: pagosPorComp[c] || 0 }))
 
-    return NextResponse.json({
+    const result = {
       periodo: { meses, inicio },
       resumo: {
         empresasMei: meiIds.size,
@@ -108,7 +120,26 @@ export async function GET(request: NextRequest) {
         nfse: serieNFSe,
         pagos: seriePagos,
       },
-    })
+    }
+
+    if (format === 'csv') {
+      const rows: string[] = []
+      rows.push('tipo,competencia,valor')
+      serieEntregas.forEach((s) => rows.push(['entregas', s.competencia, s.valor].join(',')))
+      serieOmissos.forEach((s) => rows.push(['omissos', s.competencia, s.valor].join(',')))
+      serieNFSe.forEach((s) => rows.push(['nfse', s.competencia, s.valor].join(',')))
+      seriePagos.forEach((s) => rows.push(['pagos', s.competencia, s.valor].join(',')))
+
+      return new NextResponse(rows.join('\n'), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="mei-sn.csv"'
+        }
+      })
+    }
+
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Erro em MEI SN:', error)
     return NextResponse.json({ error: 'Erro em MEI SN' }, { status: 500 })

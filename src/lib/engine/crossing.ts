@@ -205,7 +205,7 @@ export async function cruzamentoPgdasNfse(
     const municipioSede = settings?.cityName?.toLowerCase()
     if (municipioSede) {
         const invoicesFora = invoices.filter(inv => {
-            const municipioPrestacao = parseMunicipioFromXml(inv.xmlContent)
+            const municipioPrestacao = (inv.municipioPrestacao || parseMunicipioFromXml(inv.xmlContent) || '').toLowerCase()
             if (!municipioPrestacao) return false
             return !municipioPrestacao.includes(municipioSede)
         })
@@ -216,7 +216,7 @@ export async function cruzamentoPgdasNfse(
                 tipo: 'MUNICIPIO_DIVERGENTE',
                 descricao: `Ha NFSe com municipio de prestacao diferente de ${settings?.cityName}. Valor total fora do municipio: R$ ${valorFora.toFixed(2)}. Conferir se ISS foi recolhido ao municipio de destino.`,
                 valor: valorFora,
-                valorDeclarado: totalDeclaradoPGDAS,
+                valorDeclarado: receitaDeclarada,
                 gravidade: valorFora > 10000 ? 'ALTA' : 'MEDIA',
                 fundamentoLegal: 'Item 4.30.5.4 do TR - ISS devido ao municipio competente',
                 periodo: period
@@ -395,11 +395,10 @@ export async function validarRetencoes(
 
     const aliquotaEfetiva = declaration.revenue > 0 ? declaration.taxDue / declaration.revenue : 0
 
-    const invoicesComRetencao = invoices.filter(inv => 
-        (inv.xmlContent && /iss.?ret/i.test(inv.xmlContent)) || inv.xmlContent?.includes('RETIDO')
-    )
+    const invoicesComRetencao = invoices.filter(inv => inv.issRetido || (inv.xmlContent && /iss.?ret/i.test(inv.xmlContent || '')))
 
     const aliquotasRetidas = invoicesComRetencao.map(inv => {
+        if (inv.aliquotaIss && inv.aliquotaIss > 0) return inv.aliquotaIss
         const parsed = parseAliquotaFromXml(inv.xmlContent)
         if (parsed !== null) return parsed
         // fallback: assume 5% retencao se marcado como retido
@@ -408,6 +407,9 @@ export async function validarRetencoes(
 
     const valorRetencaoEsperado = invoicesComRetencao.reduce((sum, inv, idx) => {
         const aliq = aliquotasRetidas[idx] || 0
+        if (inv.valorIssRetido && inv.valorIssRetido > 0) {
+            return sum + inv.valorIssRetido
+        }
         return sum + inv.value * aliq
     }, 0)
 

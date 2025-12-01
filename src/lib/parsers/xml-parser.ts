@@ -4,6 +4,8 @@ export interface PGDASData {
     cnpj: string
     period: string // Format: MM/YYYY
     competencia: string
+    recibo?: string
+    autenticacao?: string
     receitaBrutaTotal: number
     receitaBrutaMensal: number
     deducoes: number
@@ -22,6 +24,8 @@ export async function parsePGDAS(xmlContent: string): Promise<PGDASData> {
         explicitArray: false,
         mergeAttrs: true,
         normalizeTags: true,
+        trim: true,
+        normalize: true,
         attrValueProcessors: [
             (value) => {
                 // Remove formatação de números
@@ -86,6 +90,9 @@ export async function parsePGDAS(xmlContent: string): Promise<PGDASData> {
         declaracao.receitabrutaresumida ||
         '0'
     )
+
+    const recibo = cabecalho.recibo || declaracao.recibo || declaracao.numerorecibo || declaracao.recibonumero
+    const autenticacao = cabecalho.codigoautenticacao || cabecalho.autenticacao || declaracao.codigoautenticacao
 
     // Deduções permitidas
     const deducoes = parseFloat(
@@ -158,7 +165,9 @@ export async function parsePGDAS(xmlContent: string): Promise<PGDASData> {
         issRetido,
         issSubstituicao,
         dataApuracao: new Date(),
-        anexo: dadosapuracao.anexo || declaracao.anexo || undefined
+        anexo: dadosapuracao.anexo || declaracao.anexo || undefined,
+        recibo: recibo || undefined,
+        autenticacao: autenticacao || undefined
     }
 }
 
@@ -173,13 +182,17 @@ export interface DEFISData {
     despesasTotal: number
     investimentos: number
     anexo: string
+    recibo?: string
+    autenticacao?: string
 }
 
 export async function parseDEFIS(xmlContent: string): Promise<DEFISData> {
     const parser = new xml2js.Parser({ 
         explicitArray: false,
         mergeAttrs: true,
-        normalizeTags: true 
+        normalizeTags: true,
+        trim: true,
+        normalize: true
     })
     
     const result = await parser.parseStringPromise(xmlContent)
@@ -188,6 +201,8 @@ export async function parseDEFIS(xmlContent: string): Promise<DEFISData> {
     const identificacao = declaracao.identificacao || {}
     const receitas = declaracao.receitas || {}
     const despesas = declaracao.despesas || {}
+    const recibo = identificacao.recibo || declaracao.recibo || declaracao.numerorecibo
+    const autenticacao = identificacao.codigoautenticacao || declaracao.codigoautenticacao
 
     return {
         cnpj: (identificacao.cnpj || '').replace(/\D/g, ''),
@@ -199,7 +214,9 @@ export async function parseDEFIS(xmlContent: string): Promise<DEFISData> {
         folhaSalarios: parseFloat(despesas.folha || despesas.folhasalarios || '0'),
         despesasTotal: parseFloat(despesas.total || '0'),
         investimentos: parseFloat(despesas.investimentos || '0'),
-        anexo: identificacao.anexo || declaracao.anexo || ''
+        anexo: identificacao.anexo || declaracao.anexo || '',
+        recibo: recibo || undefined,
+        autenticacao: autenticacao || undefined
     }
 }
 
@@ -234,6 +251,7 @@ export interface NFSeData {
     valorCSLL: number
     outrasRetencoes: number
     valorIss: number
+    valorIssRetido?: number
     issRetido: boolean
     valorLiquidoNfse: number
     
@@ -242,6 +260,8 @@ export interface NFSeData {
     codigoCnae?: string
     discriminacao: string
     codigoMunicipio: string
+    municipioPrestacao?: string
+    municipioTomador?: string
     
     // ISS
     aliquota: number
@@ -252,7 +272,9 @@ export async function parseNFSe(xmlContent: string): Promise<NFSeData> {
     const parser = new xml2js.Parser({ 
         explicitArray: false,
         mergeAttrs: true,
-        normalizeTags: true 
+        normalizeTags: true,
+        trim: true,
+        normalize: true 
     })
     
     const result = await parser.parseStringPromise(xmlContent)
@@ -281,6 +303,7 @@ export async function parseNFSe(xmlContent: string): Promise<NFSeData> {
     const servico = infNfse.servico || {}
     const valores = servico.valores || servico
     const itemLista = servico.itemlistaservico || servico.codigoservico || ''
+    const enderecoTomador = (tomador && (tomador.endereco || tomador.enderecotomador)) || {}
     
     // Valores
     const valorServicos = parseFloat(valores.valorservicos || '0')
@@ -292,10 +315,13 @@ export async function parseNFSe(xmlContent: string): Promise<NFSeData> {
     const valorCSLL = parseFloat(valores.valorcsll || '0')
     const outrasRetencoes = parseFloat(valores.outrasretencoes || '0')
     const valorIss = parseFloat(valores.valoriss || '0')
+    const valorIssRetido = parseFloat(valores.valorissretido || valores.valorisretido || '0')
     const valorLiquidoNfse = parseFloat(valores.valorliquidonfse || valores.valorliquido || '0')
     const baseCalculo = parseFloat(valores.basecalculo || '0')
     const aliquota = parseFloat(valores.aliquota || '0')
     const issRetido = valores.issretido === '1' || valores.issretido === 'true' || valores.issretido === true
+    const municipioPrestacao = servico.codigomunicipio || valores.codigomunicipio || nfse.codigomunicipio || ''
+    const municipioTomador = enderecoTomador.codigomunicipio || enderecoTomador.cidade || undefined
 
     return {
         numero: numero.toString(),
@@ -325,6 +351,7 @@ export async function parseNFSe(xmlContent: string): Promise<NFSeData> {
         valorCSLL,
         outrasRetencoes,
         valorIss,
+        valorIssRetido: isNaN(valorIssRetido) ? undefined : valorIssRetido,
         issRetido,
         valorLiquidoNfse,
         
@@ -332,6 +359,8 @@ export async function parseNFSe(xmlContent: string): Promise<NFSeData> {
         codigoCnae: servico.codigocnae || servico.cnae,
         discriminacao: servico.discriminacao || '',
         codigoMunicipio: servico.codigomunicipio || valores.codigomunicipio || '',
+        municipioPrestacao: municipioPrestacao || undefined,
+        municipioTomador,
         
         aliquota,
         baseCalculo

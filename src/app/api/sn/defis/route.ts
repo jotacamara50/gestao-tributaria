@@ -18,12 +18,23 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const anos = Number(searchParams.get('anos') || '5')
+    const filtroCnpj = (searchParams.get('cnpj') || '').replace(/\D/g, '')
+    const format = (searchParams.get('format') || '').toLowerCase()
     const anoAtual = new Date().getFullYear()
     const minAno = anoAtual - anos + 1
 
     const defis = await prisma.defis.findMany({
-      where: { exercicio: { gte: minAno } },
-      include: { socios: true },
+      where: {
+        exercicio: { gte: minAno },
+        ...(filtroCnpj
+          ? {
+              company: {
+                cnpj: { contains: filtroCnpj },
+              },
+            }
+          : {}),
+      },
+      include: { socios: true, company: { select: { id: true, cnpj: true, name: true } } },
       orderBy: { exercicio: 'desc' },
     })
 
@@ -42,6 +53,27 @@ export async function GET(request: NextRequest) {
     })
 
     const resumo = Array.from(porExercicio.values()).sort((a, b) => b.exercicio - a.exercicio)
+
+    if (format === 'csv') {
+      const rows: string[] = []
+      rows.push('exercicio,cnpj,nome,socios,rendimentoSocios')
+      defis.forEach((d) => {
+        rows.push([
+          d.exercicio,
+          `"${d.company?.cnpj || ''}"`,
+          `"${(d.company?.name || '').replace(/"/g, '""')}"`,
+          d.socios.length,
+          d.socios.reduce((s, sct) => s + (sct.rendimento || 0), 0)
+        ].join(','))
+      })
+      return new NextResponse(rows.join('\n'), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="defis-sn.csv"'
+        }
+      })
+    }
 
     return NextResponse.json({
       periodo: { anoAtual, anos },

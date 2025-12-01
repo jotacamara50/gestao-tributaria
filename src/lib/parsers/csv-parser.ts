@@ -19,13 +19,14 @@ export function parseDAF607(csvContent: string): DAF607Data[] {
             skip_empty_lines: true,
             delimiter,
             relax_column_count: true,
+            trim: true
         })
 
         if (Array.isArray(records) && records.length) {
             return records.map((record: any) => ({
                 date: parseCompetencia(record.Competencia || record.competencia || record.Data || record.data || record.DATE),
                 amount: parseFloat((record.Valor || record.valor || record.VALUE || '').toString().replace(/\./g, '').replace(',', '.')) || 0,
-                origin: 'DAF607',
+                origin: (record.Origem || record.origem || 'DAF607').toString(),
                 description: record.Descricao || record.descricao || record.DESCRIPTION,
                 cnpj: (record.CNPJ || record.cnpj || record.cnpjTomador || '').replace(/\D/g, '') || undefined,
             }))

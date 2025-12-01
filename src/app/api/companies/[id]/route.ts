@@ -38,6 +38,25 @@ export async function GET(
                 dteMessages: {
                     orderBy: { sentAt: 'desc' },
                     take: 50
+                },
+                guias: {
+                    orderBy: { dataEmissao: 'desc' },
+                    take: 60,
+                    include: { tributos: true }
+                },
+                parcelamentos: {
+                    orderBy: { dataPedido: 'desc' },
+                    take: 20,
+                    include: { parcelas: { orderBy: { vencimento: 'asc' } } }
+                },
+                dasdDeclarations: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 60
+                },
+                defis: {
+                    orderBy: { exercicio: 'desc' },
+                    take: 10,
+                    include: { socios: true }
                 }
             }
         });

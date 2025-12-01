@@ -40,9 +40,13 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const anos = Number(searchParams.get('anos') || '5')
+    const filtroCnpj = (searchParams.get('cnpj') || '').replace(/\D/g, '')
+    const filtroCompetencia = searchParams.get('competencia') || undefined
+    const format = (searchParams.get('format') || '').toLowerCase()
     const meses = Math.max(12, Math.min(anos * 12, 60))
     const comps = competenciasUltimosMeses(meses)
     const inicio = new Date(comps[0] + '-01')
+    const compsFiltradas = filtroCompetencia ? [filtroCompetencia] : comps
 
     const settings = await prisma.settings.findUnique({ where: { id: 'default' } })
 
@@ -65,10 +69,18 @@ export async function GET(request: NextRequest) {
       }),
     ])
 
+    const allowedCompanies = new Set(
+      companies
+        .filter((c) => !filtroCnpj || (c.cnpj || '').replace(/\D/g, '').includes(filtroCnpj))
+        .map((c) => c.id)
+    )
+
     const decMap = new Map<string, Record<string, number>>()
     declarations.forEach((d) => {
       const comp = compFromPeriod(d.period)
       if (!comp) return
+      if (!allowedCompanies.has(d.companyId)) return
+      if (filtroCompetencia && comp !== filtroCompetencia) return
       const byComp = decMap.get(d.companyId) || {}
       byComp[comp] = (byComp[comp] || 0) + d.taxDue
       decMap.set(d.companyId, byComp)
@@ -80,7 +92,9 @@ export async function GET(request: NextRequest) {
     const issForaPorComp: Record<string, number> = {}
 
     invoices.forEach((n) => {
+      if (!allowedCompanies.has(n.companyId)) return
       const comp = compFromDate(n.issueDate)
+      if (filtroCompetencia && comp !== filtroCompetencia) return
       const ret = retencaoMap.get(n.companyId) || {}
       if (n.issRetido) {
         ret[comp] = (ret[comp] || 0) + (n.valorIssRetido ?? 0)
@@ -105,7 +119,7 @@ export async function GET(request: NextRequest) {
       const decs = decMap.get(c.id) || {}
       const fora = foraMap.get(c.id) || {}
 
-      comps.forEach((comp) => {
+      compsFiltradas.forEach((comp) => {
         const ret = retMap[comp] || 0
         if (ret > 0) {
           const declarado = decs[comp] || 0
@@ -134,17 +148,52 @@ export async function GET(request: NextRequest) {
       })
     })
 
-    const serieIssLocal: SerieNumero[] = comps.map((c) => ({
+    const serieIssLocal: SerieNumero[] = compsFiltradas.map((c) => ({
       competencia: c,
       valor: issLocalPorComp[c] || 0,
     }))
-    const serieIssFora: SerieNumero[] = comps.map((c) => ({
+    const serieIssFora: SerieNumero[] = compsFiltradas.map((c) => ({
       competencia: c,
       valor: issForaPorComp[c] || 0,
     }))
 
+    if (format === 'csv') {
+      const rows: string[] = []
+      rows.push('tipo,competencia,cnpj,nome,valor,detalhe')
+      retencaoEmpresas.forEach((r) => {
+        rows.push([
+          'retencao_divergente',
+          r.competencia,
+          `"${r.cnpj}"`,
+          `"${(r.name || '').replace(/"/g, '""')}"`,
+          r.diferenca,
+          `retido:${r.retido}|declarado:${r.declarado}`
+        ].join(','))
+      })
+      foraEmpresas.forEach((f) => {
+        rows.push([
+          'iss_outro_municipio',
+          f.competencia,
+          `"${f.cnpj}"`,
+          `"${(f.name || '').replace(/"/g, '""')}"`,
+          f.valor,
+          ''
+        ].join(','))
+      })
+      serieIssLocal.forEach((s) => rows.push(['iss_local', s.competencia, '', '', s.valor, ''].join(',')))
+      serieIssFora.forEach((s) => rows.push(['iss_fora', s.competencia, '', '', s.valor, ''].join(',')))
+
+      return new NextResponse(rows.join('\n'), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="iss-sn.csv"'
+        }
+      })
+    }
+
     return NextResponse.json({
-      periodo: { inicio, competencias: comps },
+      periodo: { inicio, competencias: compsFiltradas },
       series: {
         issLocal: serieIssLocal,
         issFora: serieIssFora,

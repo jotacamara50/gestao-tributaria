@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { importDAF607, importDEFIS, importNFSe, importPGDAS, importDASD, importParcelamentos, importGuias } from '@/lib/importers'
 import { logAction } from '@/lib/audit'
+import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
     try {
@@ -42,18 +43,36 @@ export async function POST(request: NextRequest) {
                 return NextResponse.json({ error: 'Invalid file type' }, { status: 400 })
         }
 
-        // Log the upload action
+        // Log the upload action com detalhes e erros se houver
         await logAction(
             'FILE_UPLOAD',
             fileType,
             {
                 fileName: file.name,
                 fileSize: file.size,
-                result: result
+                errors: result?.errors,
+                count: result?.count || result?.imported,
+                skipped: result?.skipped,
             },
             null,
             result
         )
+
+        // Persist log em tabela dedicada para rastreabilidade do edital
+        try {
+            await prisma.importLog.create({
+                data: {
+                    type: fileType,
+                    fileName: file.name,
+                    fileSize: Number(file.size),
+                    status: result?.error ? 'error' : result?.errors?.length ? 'partial' : 'success',
+                    message: result?.message || null,
+                    errors: result?.errors ? JSON.stringify(result.errors).slice(0, 10000) : null,
+                }
+            })
+        } catch (err) {
+            console.error('Erro ao registrar ImportLog:', err)
+        }
 
         const status = result?.error ? 404 : 200
         return NextResponse.json(result, { status })

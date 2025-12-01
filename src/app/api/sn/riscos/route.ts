@@ -52,9 +52,12 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const anos = Number(searchParams.get('anos') || '5')
+    const filtroCnpj = (searchParams.get('cnpj') || '').replace(/\D/g, '')
+    const filtroCompetencia = searchParams.get('competencia') || undefined
     const meses = Math.max(12, Math.min(anos * 12, 60))
     const comps = competenciasUltimosMeses(meses)
     const inicio = new Date(comps[0] + '-01')
+    const compsFiltradas = filtroCompetencia ? [filtroCompetencia] : comps
 
     const [companies, declarations, invoices] = await Promise.all([
       prisma.company.findMany({ select: { id: true, cnpj: true, name: true } }),
@@ -68,10 +71,18 @@ export async function GET(request: NextRequest) {
       }),
     ])
 
+    const allowedCompanies = new Set(
+      companies
+        .filter((c) => !filtroCnpj || (c.cnpj || '').replace(/\D/g, '').includes(filtroCnpj))
+        .map((c) => c.id)
+    )
+
     const decMap = new Map<string, Record<string, number>>()
     declarations.forEach((d) => {
       const comp = compFromPeriod(d.period)
       if (!comp) return
+      if (!allowedCompanies.has(d.companyId)) return
+      if (filtroCompetencia && comp !== filtroCompetencia) return
       const byComp = decMap.get(d.companyId) || {}
       byComp[comp] = (byComp[comp] || 0) + d.revenue
       decMap.set(d.companyId, byComp)
@@ -80,19 +91,23 @@ export async function GET(request: NextRequest) {
     const nfseMap = new Map<string, Record<string, number>>()
     invoices.forEach((n) => {
       const comp = compFromDate(n.issueDate)
+      if (!allowedCompanies.has(n.companyId)) return
+      if (filtroCompetencia && comp !== filtroCompetencia) return
       const byComp = nfseMap.get(n.companyId) || {}
       byComp[comp] = (byComp[comp] || 0) + n.value
       nfseMap.set(n.companyId, byComp)
     })
 
-    const resultados: RiscoEmpresa[] = companies.map((c) => {
+    const resultados: RiscoEmpresa[] = companies
+      .filter((c) => allowedCompanies.has(c.id))
+      .map((c) => {
       const decs = decMap.get(c.id) || {}
       const notas = nfseMap.get(c.id) || {}
 
       let divergenciaTotal = 0
       let omissos = 0
 
-      comps.forEach((comp) => {
+      compsFiltradas.forEach((comp) => {
         const declarado = decs[comp] || 0
         const nf = notas[comp] || 0
         if (!declarado && nf > 0) {
@@ -121,8 +136,29 @@ export async function GET(request: NextRequest) {
       { critico: 0, alto: 0, medio: 0, baixo: 0 }
     )
 
+    if ((searchParams.get('format') || '').toLowerCase() === 'csv') {
+      const rows: string[] = []
+      rows.push('cnpj,nome,risco,omissos,divergencia')
+      resultados.forEach((r) => {
+        rows.push([
+          `"${r.cnpj}"`,
+          `"${(r.name || '').replace(/"/g, '""')}"`,
+          r.risco,
+          r.omissos,
+          r.divergencia
+        ].join(','))
+      })
+      return new NextResponse(rows.join('\n'), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="riscos-sn.csv"'
+        }
+      })
+    }
+
     return NextResponse.json({
-      periodo: { competencias: comps, anos, meses },
+      periodo: { competencias: compsFiltradas, anos, meses },
       resumo,
       empresas: resultados.sort((a, b) => b.divergencia - a.divergencia),
     })

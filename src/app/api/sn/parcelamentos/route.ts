@@ -29,9 +29,13 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const anos = Number(searchParams.get('anos') || '5')
+    const filtroCnpj = (searchParams.get('cnpj') || '').replace(/\D/g, '')
+    const filtroCompetencia = searchParams.get('competencia') || undefined
+    const format = (searchParams.get('format') || '').toLowerCase()
     const meses = Math.max(12, Math.min(anos * 12, 60))
     const comps = competenciasUltimosMeses(meses)
     const inicio = new Date(comps[0] + '-01')
+    const compsFiltradas = filtroCompetencia ? [filtroCompetencia] : comps
 
     const [parcelas, companies] = await Promise.all([
       prisma.parcela.findMany({
@@ -40,6 +44,13 @@ export async function GET(request: NextRequest) {
       }),
       prisma.company.findMany({ select: { id: true, cnpj: true, name: true } }),
     ])
+
+    const empresasFiltro = new Set(
+      companies
+        .filter((c) => !filtroCnpj || (c.cnpj || '').replace(/\D/g, '').includes(filtroCnpj))
+        .map((c) => c.id)
+    )
+    const parcelasFiltradas = parcelas.filter((p) => empresasFiltro.has(p.parcelamento.companyId))
 
     // agregações
     const empresasComParcelamento = new Set<string>()
@@ -51,8 +62,9 @@ export async function GET(request: NextRequest) {
     const parcelasPagasPorComp: Record<string, number> = {}
     const parcelamentosPorComp: Record<string, Set<string>> = {}
 
-    for (const p of parcelas) {
+    for (const p of parcelasFiltradas) {
       const comp = compFromDate(p.vencimento)
+      if (filtroCompetencia && comp !== filtroCompetencia) continue
       const empresa = p.parcelamento.companyId
       empresasComParcelamento.add(empresa)
       const isPaga = p.situacao.toLowerCase() === 'paga'
@@ -92,28 +104,28 @@ export async function GET(request: NextRequest) {
       })
       .sort((a, b) => b.valor - a.valor)
 
-    const serieAtrasos: SerieNumero[] = comps.map((c) => ({
+    const serieAtrasos: SerieNumero[] = compsFiltradas.map((c) => ({
       competencia: c,
       valor: atrasosPorComp[c] || 0,
     }))
-    const serieValorAtraso: SerieNumero[] = comps.map((c) => ({
+    const serieValorAtraso: SerieNumero[] = compsFiltradas.map((c) => ({
       competencia: c,
       valor: valorAtrasoPorComp[c] || 0,
     }))
-    const serieValorAberto: SerieNumero[] = comps.map((c) => ({
+    const serieValorAberto: SerieNumero[] = compsFiltradas.map((c) => ({
       competencia: c,
       valor: valorAReceberPorComp[c] || 0,
     }))
-    const serieValorPago: SerieNumero[] = comps.map((c) => ({
+    const serieValorPago: SerieNumero[] = compsFiltradas.map((c) => ({
       competencia: c,
       valor: parcelasPagasPorComp[c] || 0,
     }))
-    const serieParcelamentos: SerieNumero[] = comps.map((c) => ({
+    const serieParcelamentos: SerieNumero[] = compsFiltradas.map((c) => ({
       competencia: c,
       valor: (parcelamentosPorComp[c]?.size) || 0,
     }))
 
-    return NextResponse.json({
+    const result = {
       periodo: { meses, inicio },
       resumo: {
         empresasParcelamento: empresasComParcelamento.size,
@@ -127,7 +139,36 @@ export async function GET(request: NextRequest) {
         valorPago: serieValorPago,
         parcelamentos: serieParcelamentos,
       },
-    })
+    }
+
+    if (format === 'csv') {
+      const rows: string[] = []
+      rows.push('tipo,competencia,cnpj,nome,parcelas,valor')
+      empresasAtraso.forEach((e) => {
+        rows.push([
+          'atraso_empresa',
+          '',
+          `"${e.cnpj}"`,
+          `"${(e.name || '').replace(/"/g, '""')}"`,
+          e.parcelas,
+          e.valor
+        ].join(','))
+      })
+      serieValorAtraso.forEach((s) => rows.push(['valor_atraso', s.competencia, '', '', '', s.valor].join(',')))
+      serieValorAberto.forEach((s) => rows.push(['valor_aberto', s.competencia, '', '', '', s.valor].join(',')))
+      serieValorPago.forEach((s) => rows.push(['valor_pago', s.competencia, '', '', '', s.valor].join(',')))
+      serieParcelamentos.forEach((s) => rows.push(['parcelamentos', s.competencia, '', '', '', s.valor].join(',')))
+
+      return new NextResponse(rows.join('\n'), {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': 'attachment; filename="parcelamentos-sn.csv"'
+        }
+      })
+    }
+
+    return NextResponse.json(result)
   } catch (error) {
     console.error('Erro em parcelamentos SN:', error)
     return NextResponse.json({ error: 'Erro em parcelamentos SN' }, { status: 500 })

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Input } from "@/components/ui/input"
 
 type SerieValor = { competencia: string; valor: number }
 
@@ -104,21 +105,39 @@ export default function CruzamentoSNPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [periodo, setPeriodo] = useState<"12m" | "5a">("5a")
+  const [cnpjFiltro, setCnpjFiltro] = useState("")
+  const [competenciaFiltro, setCompetenciaFiltro] = useState("")
 
-  async function carregar() {
+  function montarQuery() {
+    const params: string[] = []
+    if (cnpjFiltro.trim()) params.push(`cnpj=${encodeURIComponent(cnpjFiltro)}`)
+    if (competenciaFiltro.trim()) params.push(`competencia=${encodeURIComponent(competenciaFiltro)}`)
+    return params.join("&")
+  }
+
+  function buildUrl(path: string, formatCsv = false) {
+    const anos = periodo === "5a" ? 5 : 1
+    const base = `${path}?anos=${anos}${formatCsv ? "&format=csv" : ""}`
+    const q = montarQuery()
+    return q ? `${base}&${q}` : base
+  }
+
+  async function carregar(extraParams?: string) {
     try {
       setLoading(true)
       setError(null)
       const anos = periodo === "5a" ? 5 : 1
+      const merged = [montarQuery(), extraParams].filter(Boolean).join("&")
+      const suffix = merged ? `&${merged}` : ""
       const urls = [
         fetch(`/api/sn/dashboard?anos=${anos}`).then((r) => r.json()),
-        fetch(`/api/sn/crossings?anos=${anos}`).then((r) => r.json()),
-        fetch(`/api/sn/parcelamentos?anos=${anos}`).then((r) => r.json()),
-        fetch(`/api/sn/mei?anos=${anos}`).then((r) => r.json()),
-        fetch(`/api/sn/riscos?anos=${anos}`).then((r) => r.json()),
-        fetch(`/api/sn/iss?anos=${anos}`).then((r) => r.json()),
-        fetch(`/api/sn/defis?anos=${anos}`).then((r) => r.json()),
-        fetch(`/api/sn/guias?anos=${anos}`).then((r) => r.json()),
+        fetch(`/api/sn/crossings?anos=${anos}${suffix}`).then((r) => r.json()),
+        fetch(`/api/sn/parcelamentos?anos=${anos}${suffix}`).then((r) => r.json()),
+        fetch(`/api/sn/mei?anos=${anos}${suffix}`).then((r) => r.json()),
+        fetch(`/api/sn/riscos?anos=${anos}${suffix}`).then((r) => r.json()),
+        fetch(`/api/sn/iss?anos=${anos}${suffix}`).then((r) => r.json()),
+        fetch(`/api/sn/defis?anos=${anos}${suffix}`).then((r) => r.json()),
+        fetch(`/api/sn/guias?anos=${anos}${suffix}`).then((r) => r.json()),
       ]
       const [
         dashData,
@@ -191,7 +210,28 @@ export default function CruzamentoSNPage() {
               5 anos
             </Button>
           </div>
-          <Button variant="outline" onClick={carregar}>Atualizar</Button>
+          <div className="flex items-center gap-2">
+            <Input
+              placeholder="CNPJ"
+              className="w-32"
+              value={cnpjFiltro}
+              onChange={(e) => setCnpjFiltro(e.target.value)}
+            />
+            <Input
+              placeholder="Competência AAAA-MM"
+              className="w-40"
+              value={competenciaFiltro}
+              onChange={(e) => setCompetenciaFiltro(e.target.value)}
+            />
+            <Button variant="outline" onClick={() => carregar()}>Aplicar filtro</Button>
+            <Button variant="ghost" onClick={() => { setCnpjFiltro(""); setCompetenciaFiltro(""); carregar(""); }}>Limpar</Button>
+            <Button variant="secondary" onClick={() => window.open(buildUrl("/api/sn/crossings", true), "_blank")}>Cruzamentos CSV</Button>
+            <Button variant="secondary" onClick={() => window.open(buildUrl("/api/sn/parcelamentos", true), "_blank")}>Parcelamentos CSV</Button>
+            <Button variant="secondary" onClick={() => window.open(buildUrl("/api/sn/iss", true), "_blank")}>ISS CSV</Button>
+            <Button variant="secondary" onClick={() => window.open(buildUrl("/api/sn/mei", true), "_blank")}>MEI CSV</Button>
+            <Button variant="secondary" onClick={() => window.open(buildUrl("/api/sn/defis", true), "_blank")}>DEFIS CSV</Button>
+            <Button variant="secondary" onClick={() => window.open(buildUrl("/api/sn/guias", true), "_blank")}>Guias CSV</Button>
+          </div>
         </div>
       </div>
 
@@ -542,22 +582,26 @@ export default function CruzamentoSNPage() {
             <CardDescription>Série consolidada</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Comp</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {top(cross?.repassesSerie?.slice().reverse()).map((s, idx) => (
-                  <TableRow key={idx}>
-                    <TableCell>{s.competencia}</TableCell>
-                    <TableCell className="text-right">{currency.format(s.valor || 0)}</TableCell>
+            {top(cross?.repassesSerie).length && top(cross?.repassesSerie)?.some((s) => s.valor > 0) ? (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Comp</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {top(cross?.repassesSerie?.slice().reverse()).map((s, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell>{s.competencia}</TableCell>
+                      <TableCell className="text-right">{currency.format(s.valor || 0)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            ) : (
+              <div className="text-sm text-muted-foreground">Sem repasses DAF607 no período analisado.</div>
+            )}
           </CardContent>
         </Card>
       </div>

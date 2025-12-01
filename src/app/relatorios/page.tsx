@@ -263,7 +263,7 @@ export default function RelatoriosPage() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Relatorios Oficiais</h2>
           <p className="text-muted-foreground">
-            Geracao com filtros, exportacao PDF/CSV/Excel e cabecalho com brasao.
+            Relatorios em PDF/CSV/Excel com filtros padronizados.
           </p>
         </div>
         <div className="flex items-center gap-2">

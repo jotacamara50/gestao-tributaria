@@ -53,8 +53,11 @@ model Invoice {
   issRetido          Boolean? @default(false)
   aliquotaIss        Float?
   valorIssRetido     Float?
+  codigoVerificacao  String?
   createdAt   DateTime @default(now())
   company     Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, number], name: "company_number")
 }
 
 model Declaration {
@@ -73,6 +76,8 @@ model Declaration {
   xmlContent String?
   createdAt  DateTime @default(now())
   company    Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, type, period, receipt], name: "company_type_period_receipt")
 }
 
 model Repasse {
@@ -364,4 +369,15 @@ model SupportTicket {
 
   company        Company? @relation(fields: [companyId], references: [id])
   user           User?    @relation(fields: [createdBy], references: [id])
+}
+
+model ImportLog {
+  id        String   @id @default(cuid())
+  type      String
+  fileName  String?
+  fileSize  Int?
+  status    String   // success | partial | error
+  message   String?
+  errors    String?
+  createdAt DateTime @default(now())
 }

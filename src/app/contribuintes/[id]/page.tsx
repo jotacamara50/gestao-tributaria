@@ -85,6 +85,73 @@ interface CompanyData {
         sentAt: string
         readAt: string | null
     }>
+    guias: Array<{
+        id: string
+        numero: string
+        periodo: string
+        dataEmissao: string
+        vencimento: string
+        situacao: string
+        valorPrincipal: number
+        valorMulta: number
+        valorJuros: number
+        valorTotal: number
+        pagoEm?: string | null
+        banco?: string | null
+        agencia?: string | null
+        valorPago?: number | null
+        tributos: Array<{
+            id: string
+            tipo: string
+            valorPrincipal: number
+            valorJuros: number
+            valorMulta: number
+        }>
+    }>
+    parcelamentos: Array<{
+        id: string
+        numero: string
+        situacao: string
+        valorTotal: number
+        quantidadeParcelas: number
+        tipo?: string | null
+        dataPedido: string
+        dataSituacao?: string | null
+        parcelas: Array<{
+            id: string
+            numero: number
+            vencimento: string
+            valor: number
+            situacao: string
+            pagoEm?: string | null
+            valorPago?: number | null
+        }>
+    }>
+    dasdDeclarations: Array<{
+        id: string
+        period: string
+        deliveredAt?: string | null
+        municipioIncidencia?: string | null
+        regimeEspecial?: string | null
+        atividadeContabil?: boolean | null
+        receitaDeclarada?: number | null
+        receitaCaixa?: number | null
+    }>
+    defis: Array<{
+        id: string
+        exercicio: number
+        socios: Array<{
+            id: string
+            socioNome?: string | null
+            socioCpf?: string | null
+            rendimento?: number | null
+            participacao?: number | null
+        }>
+        rendimentosSocios?: number | null
+        codigoAutenticacao?: string | null
+        recibo?: string | null
+        transmitidoEm?: string | null
+    }>
 }
 
 export default function ContribuinteDetailsPage() {
@@ -252,14 +319,17 @@ export default function ContribuinteDetailsPage() {
 
             {/* Tabs */}
             <Tabs defaultValue="resumo" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-7">
+                <TabsList className="grid w-full grid-cols-9">
                     <TabsTrigger value="resumo">Resumo</TabsTrigger>
                     <TabsTrigger value="declaracoes">Declarações</TabsTrigger>
                     <TabsTrigger value="nfse">NFSe</TabsTrigger>
                     <TabsTrigger value="socios">Sócios</TabsTrigger>
                     <TabsTrigger value="divergencias">Divergências</TabsTrigger>
+                    <TabsTrigger value="guias">Guias</TabsTrigger>
+                    <TabsTrigger value="parcelamentos">Parcelamentos</TabsTrigger>
                     <TabsTrigger value="historico">Histórico</TabsTrigger>
                     <TabsTrigger value="dte">DTE</TabsTrigger>
+                    <TabsTrigger value="dasd">DAS-D / DEFIS</TabsTrigger>
                 </TabsList>
 
                 {/* Aba Resumo */}
@@ -557,6 +627,200 @@ export default function ContribuinteDetailsPage() {
                             </div>
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                {/* Aba Guias */}
+                <TabsContent value="guias">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Guias/DAS</CardTitle>
+                            <CardDescription>{company.guias.length} registros</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Número</TableHead>
+                                        <TableHead>Período</TableHead>
+                                        <TableHead>Situação</TableHead>
+                                        <TableHead className="text-right">Valor</TableHead>
+                                        <TableHead>ISS</TableHead>
+                                        <TableHead>Pagamento</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {company.guias.map((g) => {
+                                        const issValor = g.tributos
+                                            .filter((t) => t.tipo?.toUpperCase() === 'ISS')
+                                            .reduce((s, t) => s + t.valorPrincipal + t.valorJuros + t.valorMulta, 0)
+                                        return (
+                                            <TableRow key={g.id}>
+                                                <TableCell>{g.numero}</TableCell>
+                                                <TableCell>{g.periodo}</TableCell>
+                                                <TableCell>{g.situacao}</TableCell>
+                                                <TableCell className="text-right">
+                                                    R$ {g.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                </TableCell>
+                                                <TableCell>R$ {issValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</TableCell>
+                                                <TableCell>
+                                                    {g.pagoEm ? new Date(g.pagoEm).toLocaleDateString('pt-BR') : 'Em aberto'}
+                                                </TableCell>
+                                            </TableRow>
+                                        )
+                                    })}
+                                    {company.guias.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="text-center text-muted-foreground">
+                                                Nenhuma guia encontrada
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* Aba Parcelamentos */}
+                <TabsContent value="parcelamentos">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Parcelamentos</CardTitle>
+                            <CardDescription>{company.parcelamentos.length} acordos</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            {company.parcelamentos.map((p) => (
+                                <div key={p.id} className="border rounded-lg p-3 space-y-2">
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <div className="font-semibold">Nº {p.numero} — {p.situacao}</div>
+                                            <div className="text-sm text-muted-foreground">
+                                                Pedido: {new Date(p.dataPedido).toLocaleDateString('pt-BR')}
+                                                {p.dataSituacao && ` · Atualizado: ${new Date(p.dataSituacao).toLocaleDateString('pt-BR')}`}
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="font-bold">
+                                                R$ {p.valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                            </div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {p.quantidadeParcelas} parcelas {p.tipo ? `· ${p.tipo}` : ''}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="text-sm font-semibold">Parcelas</div>
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead>#</TableHead>
+                                                <TableHead>Vencimento</TableHead>
+                                                <TableHead>Situação</TableHead>
+                                                <TableHead className="text-right">Valor</TableHead>
+                                                <TableHead>Pago em</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {p.parcelas.map((parc) => (
+                                                <TableRow key={parc.id}>
+                                                    <TableCell>{parc.numero}</TableCell>
+                                                    <TableCell>{new Date(parc.vencimento).toLocaleDateString('pt-BR')}</TableCell>
+                                                    <TableCell>{parc.situacao}</TableCell>
+                                                    <TableCell className="text-right">
+                                                        R$ {parc.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        {parc.pagoEm ? new Date(parc.pagoEm).toLocaleDateString('pt-BR') : '-'}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            ))}
+                            {company.parcelamentos.length === 0 && (
+                                <div className="text-sm text-muted-foreground">Nenhum parcelamento encontrado.</div>
+                            )}
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                {/* Aba DAS-D / DEFIS */}
+                <TabsContent value="dasd">
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>DAS-D</CardTitle>
+                                <CardDescription>{company.dasdDeclarations.length} declarações</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Competência</TableHead>
+                                            <TableHead>Regime</TableHead>
+                                            <TableHead>Atividade contábil</TableHead>
+                                            <TableHead className="text-right">Receita</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {company.dasdDeclarations.map((d) => (
+                                            <TableRow key={d.id}>
+                                                <TableCell>{d.period}</TableCell>
+                                                <TableCell>{d.regimeEspecial || '-'}</TableCell>
+                                                <TableCell>{d.atividadeContabil ? 'Sim' : 'Não'}</TableCell>
+                                                <TableCell className="text-right">
+                                                    R$ {(d.receitaDeclarada || d.receitaCaixa || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {company.dasdDeclarations.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                                                    Nenhuma DAS-D encontrada
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>DEFIS</CardTitle>
+                                <CardDescription>{company.defis.length} exercícios</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Exercício</TableHead>
+                                            <TableHead>Sócios</TableHead>
+                                            <TableHead className="text-right">Rend. Sócios</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {company.defis.map((d) => (
+                                            <TableRow key={d.id}>
+                                                <TableCell>{d.exercicio}</TableCell>
+                                                <TableCell>{d.socios.length}</TableCell>
+                                                <TableCell className="text-right">
+                                                    R$ {(d.rendimentosSocios || d.socios.reduce((s, sct) => s + (sct.rendimento || 0), 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                        {company.defis.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={3} className="text-center text-muted-foreground">
+                                                    Nenhuma DEFIS encontrada
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </div>
                 </TabsContent>
 
                 {/* Aba Histórico */}

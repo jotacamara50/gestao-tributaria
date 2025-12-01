@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { parseDAF607 } from '@/lib/parsers/csv-parser'
 
+type DAFImportError = { index: number; error: string; raw?: any }
+
 export async function importDAF607(fileContent: string) {
     const parsed = parseDAF607(fileContent)
 
@@ -8,9 +10,13 @@ export async function importDAF607(fileContent: string) {
         throw new Error('Arquivo DAF607 vazio ou inválido')
     }
 
-    const sanitized = parsed.filter(item => {
+    const errors: DAFImportError[] = []
+    const sanitized = parsed.filter((item, idx) => {
         const dateOk = item.date instanceof Date && !Number.isNaN(item.date.getTime())
-        const amountOk = !Number.isNaN(item.amount)
+        const amountOk = !Number.isNaN(item.amount) && item.amount > 0
+        if (!dateOk || !amountOk) {
+            errors.push({ index: idx, error: 'Data ou valor inválido', raw: item })
+        }
         return dateOk && amountOk
     })
 
@@ -38,7 +44,11 @@ export async function importDAF607(fileContent: string) {
 
     const novos = sanitized.filter(item => {
         const k = key(item.date, item.amount, item.cnpj, item.origin)
-        return !existentesKeys.has(k)
+        const dup = existentesKeys.has(k)
+        if (dup) {
+            errors.push({ index: parsed.indexOf(item), error: 'Duplicado (data/valor/CNPJ)', raw: item })
+        }
+        return !dup
     })
 
     const repasses = novos.length
@@ -54,8 +64,10 @@ export async function importDAF607(fileContent: string) {
 
     return {
         count: repasses.count,
-        parsedCount: sanitized.length,
-        skipped: parsed.length - sanitized.length + (sanitized.length - novos.length),
-        message: `${repasses.count} repasses importados (deduplicados ${sanitized.length - novos.length})`
+        parsedCount: parsed.length,
+        imported: novos.length,
+        skipped: parsed.length - novos.length,
+        errors,
+        message: `${repasses.count} repasses importados (deduplicados ${sanitized.length - novos.length}, inválidos ${errors.length})`
     }
 }
